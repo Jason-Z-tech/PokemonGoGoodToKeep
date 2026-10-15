@@ -10,13 +10,13 @@ const Overview = (() => {
   const STEP = 48;
   const USES = [
     { id: 'all', label: 'Alle Einsätze' },
-    { id: 'raid', label: 'Raids & Arenen' },
-    { id: 'max', label: 'Max-Kämpfe' },
+    { id: 'raid', label: 'Raids & Arenen', inLabel: 'in Raids & Arenen' },
+    { id: 'max', label: 'Max-Kämpfe', inLabel: 'in Max-Kämpfen' },
   ];
   const GROUPS = [
     { id: 'all', label: 'Alle' },
-    { id: 'normal', label: 'Normal' },
-    { id: 'legendary', label: 'Legendär & Mysteriös' },
+    { id: 'normal', label: 'Normal (ohne Crypto)' },
+    { id: 'legendary', label: 'Legendär, Mysteriös & Ultrabestien' },
     { id: 'mega', label: 'Mega & Proto' },
     { id: 'shadow', label: 'Nur Crypto', crypto: true },
   ];
@@ -31,7 +31,7 @@ const Overview = (() => {
   const DEFAULTS = { grade: 'all', group: 'all', use: 'all', type: '', sort: 'dex' };
   const state = { ...DEFAULTS, query: '', shown: STEP };
 
-  const normalized = new Map(data.pokemon.map((p) => [p.key, Power.normalize(`${p.name} ${p.nameEn} ${p.dex}`)]));
+  const index = new Map(data.pokemon.map((p) => [p.key, Power.searchIndex(p)]));
 
   // Variante: normal vor Mega/Proto vor Crypto (bei gleicher Pokédex-Nummer).
   const VARIANT_ORDER = (p) => (p.shadow ? 2 : p.variant === 'normal' ? 0 : 1);
@@ -66,9 +66,9 @@ const Overview = (() => {
     if (!m) return null;
     if (type) {
       const a = m.attack.find((x) => x.type === type);
-      return a ? { grade: a.grade, rank: a.rank, type } : null;
+      return a ? { grade: a.grade, rank: a.rank, type, kind: a.kind } : null;
     }
-    return { grade: m.grade, rank: m.attack[0]?.rank ?? null, type: m.attack[0]?.type };
+    return { grade: m.grade, rank: m.attack[0]?.rank ?? null, type: m.attack[0]?.type, kind: m.attack[0]?.kind };
   }
 
   // ---------- Filter ----------
@@ -95,7 +95,7 @@ const Overview = (() => {
     const list = [];
     for (const p of data.pokemon) {
       if (!Power.visible(p)) continue;
-      if (query && !normalized.get(p.key).includes(query)) continue;
+      if (query && !Power.matchesQuery(index.get(p.key), query)) continue;
       if (!matchesGroup(p, s.group)) continue;
       const rating = useRating(p, s.use, s.type, s.group);
       if (!rating) continue;
@@ -146,7 +146,11 @@ const Overview = (() => {
   function useText(p, rating) {
     const type = rating.type ?? state.type;
     if (state.use === 'raid') return `Platz ${rating.rank}${type ? ` als ${data.types[type]}-Angreifer` : ''}${p.variant !== 'normal' ? ' (Megas)' : ''}`;
-    return `Platz ${rating.rank}${type ? ` (${data.types[type]})` : ''} – nur als Dynamax`;
+    // Max-Kämpfe: Der Platz gilt für die Form, die ihn erreicht (Gigadynamax oft mit eigener G-Max-Attacke).
+    const m = p.rating.max;
+    const kind = rating.kind === 'gigantamax' ? `Gigadynamax${m.move ? ` (${m.move})` : ''}` : 'Dynamax';
+    if (!rating.rank) return `Tank: Platz ${m.tankRank} – nur als ${kind}`;
+    return `Platz ${rating.rank}${type ? ` (${data.types[type]})` : ''} – nur als ${kind}`;
   }
 
   function chipGroup(id, label, options, key, counts = null) {
@@ -161,9 +165,11 @@ const Overview = (() => {
           state[key] = o.id;
           state.shown = STEP;
           if (key === 'use' && o.id !== 'all' && state.sort === 'dex') state.sort = 'best';
-          if (key === 'use' && o.id === 'all' && state.grade === 'evolve') state.grade = 'all';
           render();
-          document.querySelector(`#${id} button[data-value="${o.id}"]`)?.focus({ preventScroll: true });
+          const chip = document.querySelector(`#${id} button[data-value="${o.id}"]`);
+          chip?.focus({ preventScroll: true });
+          // Handy: Die Chip-Zeile scrollt seitlich – der gewählte Chip bleibt sichtbar.
+          chip?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         },
       }, [o.label, counts ? el('small', { class: 'chip__count', text: ` ${counts[o.id] ?? 0}` }) : null]))),
     ]);
@@ -226,19 +232,30 @@ const Overview = (() => {
   }
 
   function render() {
+    // Filter, die es in dieser Einstellung nicht gibt, fallen weg ("Entwickeln" nur bei "Alle Einsätze",
+    // "Nur Crypto" nur mit Crypto-Pokémon).
+    if (state.grade === 'evolve' && state.use !== 'all') state.grade = 'all';
+    if (state.group === 'shadow' && !Power.settings.crypto) state.group = 'all';
     const list = sorted(candidates().filter(({ p, rating }) => matchesGrade(p, state.grade, rating)));
-    document.getElementById('list-controls').replaceChildren(controls());
+    const target = document.getElementById('list-controls');
+    // Seitlich gescrollte Chip-Zeilen (Handy) bleiben, wo sie waren.
+    const chipScroll = [...target.querySelectorAll('.chips')].map((g) => [g.id, g.querySelector('.chips__list').scrollLeft]);
+    target.replaceChildren(controls());
+    for (const [gid, x] of chipScroll) {
+      const row = target.querySelector(`#${gid} .chips__list`);
+      if (row) row.scrollLeft = x;
+    }
     const hint = hintText();
     document.getElementById('list-hint').textContent = hint ?? '';
     document.getElementById('list-hint').hidden = !hint;
     const query = state.query.trim();
     document.getElementById('list-count').textContent = list.length
-      ? `${formatNumber(list.length)} Pokémon${query ? ` passen zu „${query}“` : ''}`
+      ? `${formatNumber(list.length)} Pokémon${query ? ` ${list.length === 1 ? 'passt' : 'passen'} zu „${query}“` : ''}`
       : `Kein Pokémon passt${query ? ` zu „${query}“` : ''} – Filter lockern?`;
     const shown = list.slice(0, state.shown);
     const ranked = state.use !== 'all';
     document.getElementById('poke-grid').replaceChildren(...shown.map(({ p, rating }) => el('li', {}, [
-      ranked ? tile(p, { rank: rating.rank, grade: rating.grade, reason: useText(p, rating), rankTitle: `Platz in ${USES.find((u) => u.id === state.use).label}` }) : tile(p),
+      ranked ? tile(p, { rank: rating.rank, grade: rating.grade, reason: useText(p, rating), rankTitle: `Platz ${USES.find((u) => u.id === state.use).inLabel}` }) : tile(p),
     ])));
     const rest = list.length - shown.length;
     const more = document.getElementById('list-more');
@@ -257,7 +274,6 @@ const Overview = (() => {
     document.getElementById('list-more').addEventListener('click', showMore);
     Search.onQuery((q) => { state.query = q; state.shown = STEP; render(); });
     Power.onSettingsChange(() => {
-      if (!Power.settings.crypto && state.group === 'shadow') state.group = 'all';
       state.shown = STEP;
       render();
     });
@@ -265,11 +281,20 @@ const Overview = (() => {
     render();
   }
 
-  // Für Adressen wie #rangliste=raid-fire: die Liste als Rangliste zeigen.
+  // Für Adressen wie #rangliste=raid-fire: die ganze Rangliste zeigen (ohne Suche).
   function showRanking({ use, type = '', group = 'all' }) {
-    Object.assign(state, DEFAULTS, { use, type, group, sort: 'best', shown: STEP });
+    Object.assign(state, DEFAULTS, { use, type, group, sort: 'best', shown: STEP, query: '' });
+    Search.set('');
     render();
   }
 
-  return { init, render, showRanking, tile, raidRank, byDex };
+  // Zustand der Liste für den Verlauf: Zurück zeigt die Liste so, wie sie war (Filter, Suche, Anzahl).
+  const snapshot = () => ({ query: state.query, grade: state.grade, group: state.group, use: state.use, type: state.type, sort: state.sort, shown: state.shown });
+  function restore(saved) {
+    Object.assign(state, DEFAULTS, { shown: STEP }, saved);
+    Search.set(state.query);
+    render();
+  }
+
+  return { init, render, showRanking, snapshot, restore, tile, raidRank, byDex };
 })();

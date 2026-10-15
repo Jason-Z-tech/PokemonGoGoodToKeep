@@ -235,6 +235,22 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 }
 @media (forced-colors: active) {
   .page-nav__link[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }
+  /* Hoher Kontrast: Zustände (an/aus, gewählt) mit Systemfarben statt Hintergrund und Schatten. */
+  .toggle__track { forced-color-adjust: none; background: Canvas; border: 1px solid CanvasText; }
+  .toggle__track::after { top: 2px; left: 2px; background: CanvasText; }
+  .toggle input:checked + .toggle__track,
+  .crypto-switch .toggle input:checked + .toggle__track { background: Highlight; border-color: Highlight; }
+  .toggle input:checked + .toggle__track::after { background: HighlightText; }
+  .toggle input:disabled + .toggle__track { border-color: GrayText; }
+  .toggle input:disabled + .toggle__track::after { background: GrayText; }
+  .segmented input:checked + span,
+  .tabs__btn[aria-selected="true"],
+  .chip[aria-pressed="true"],
+  .preset[aria-pressed="true"],
+  .view-tabs__link[aria-current="page"],
+  .sub-tabs__link[aria-current="page"],
+  .type-btn[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+  .search input:focus, .select select:focus, .iv select:focus, .cp-input input:focus { outline: 2px solid Highlight; outline-offset: 2px; }
 }
 
 .hero__eyebrow {
@@ -692,7 +708,7 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 .chip--niche { --v: var(--g-niche); }
 .chip--no { --v: var(--g-no); }
 .chip--evolve { --v: var(--g-evolve); }
-.chip__count { font-weight: 600; opacity: .75; }
+.chip__count { font-weight: 600; opacity: .85; }
 
 .select { position: relative; display: block; min-width: 0; }
 .select::after {
@@ -820,7 +836,9 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 
 .related { margin-top: 14px; }
 .related__list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.related__list li { min-width: 0; max-width: 100%; }
 .related__link {
+  max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -834,7 +852,7 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
   font-weight: 700;
 }
 .related__link:hover { border-color: #ffffff40; }
-.related__text { display: grid; line-height: 1.2; }
+.related__text { display: grid; min-width: 0; line-height: 1.2; overflow-wrap: anywhere; hyphens: auto; }
 .related__text small { font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .related__link .verdict { font-size: .66rem; padding: 0 7px; }
 
@@ -853,8 +871,8 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 .mine__iv-total { margin: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 .mine__iv-total strong { color: var(--gold); font-family: var(--font-display); font-size: 1.2rem; }
 .mine__ivs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.iv { position: relative; display: grid; gap: 4px; }
-.iv__label { font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.iv { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: 1fr auto; gap: 4px; }
+.iv__label { align-self: end; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
 .iv select {
   width: 100%;
   min-height: 48px;
@@ -1153,12 +1171,20 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 
 @media (max-width: 599.98px) {
   /* Chips in einer wischbaren Zeile, damit die Liste schnell sichtbar ist. */
-  .chips__list { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -14px; padding: 2px 14px; scroll-padding: 0 14px; }
+  /* Genug Rand oben und unten, damit der Fokus-Rahmen nicht abgeschnitten wird. */
+  .chips__list { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: -4px -14px; padding: 6px 14px; scroll-padding: 0 14px; }
   .chips__list::-webkit-scrollbar { display: none; }
   .chip { flex: none; }
   .filters__row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .filters__row > :last-child { grid-column: 1 / -1; }
   .legend { font-size: .76rem; gap: 4px 12px; }
+  .select select { padding-right: 34px; }
+  .select::after { right: 14px; }
+}
+
+/* Sehr schmale Handys (320 px): "Verteidigung" passt noch über sein Feld. */
+@media (max-width: 359.98px) {
+  .iv__label { letter-spacing: 0; font-size: .68rem; }
 }
 
 /* ---------- Größere Bildschirme ---------- */

@@ -18,6 +18,7 @@ const VIEWPORTS = [
   { label: 'Desktop', width: 1280, height: 900, every: 1 },
   { label: 'Tablet', width: 820, height: 1180, mobile: true, every: 7 },
   { label: 'Handy', width: 390, height: 844, mobile: true, every: 5 },
+  { label: 'Klein', width: 320, height: 640, mobile: true, every: 13 },
 ];
 
 let passed = 0;
@@ -145,13 +146,18 @@ async function testStart(page, vp) {
   check(s.tiles.length === 96 && focused === s.tiles[48].key, `${tag} "Weitere anzeigen": ${s.tiles.length} Kacheln, Fokus ${focused}`);
 
   // Suche oben (deutsch, englisch, Nummer): filtert die Liste und zeigt Vorschläge.
-  for (const [query, expect] of [['mamutel', 'mamoswine'], ['Mamoswine', 'crypto-mamoswine'], ['445', 'garchomp'], ['mega gengar', 'gengar-mega']]) {
+  // Auch: Nummer wie auf den Kacheln (#025), ohne Bindestrich (hooh), Umlaut als ue (ruestung).
+  for (const [query, expect] of [['mamutel', 'mamoswine'], ['Mamoswine', 'crypto-mamoswine'], ['445', 'garchomp'], ['mega gengar', 'gengar-mega'],
+    ['#025', 'pikachu'], ['hooh', 'ho-oh'], ['ruestung', 'mewtwo-a']]) {
     await page.type('#search', query);
     s = await listState(page);
     check(s.tiles.some((t) => t.key === expect), `${tag} Suche "${query}" findet ${expect} nicht`);
     const suggest = await page.eval(`[...document.querySelectorAll('#search-suggest [data-pokemon]')].map((o) => o.dataset.pokemon)`);
     check(suggest.includes(expect), `${tag} Vorschläge zu "${query}" ohne ${expect}: ${suggest.join(', ')}`);
   }
+  await page.type('#search', 'endynalos');
+  s = await listState(page);
+  check(/^1 Pokémon passt zu/.test(s.count), `${tag} Einzahl: ${s.count}`);
   await page.key('Escape');
   check(await page.eval(`document.getElementById('search-suggest').hidden`), `${tag} Escape schließt die Vorschläge`);
   await page.click('#search-clear');
@@ -169,7 +175,12 @@ async function testStart(page, vp) {
   await page.click('#filter-grade button[data-value="evolve"]');
   s = await listState(page);
   check(s.tiles.length && s.tiles.every((t) => t.verdict === 'verdict--evolve' && byKey.get(t.key).rating.evolve), `${tag} Filter Entwickeln`);
-  await page.click('#filter-grade button[data-value="all"]');
+  // "Entwickeln" gibt es nur bei "Alle Einsätze": Beim Wechsel des Einsatzes fällt der Filter weg.
+  await page.click('#filter-use button[data-value="raid"]');
+  s = await listState(page);
+  const allChip = await page.eval(`(() => { const b = document.querySelector('#filter-grade button[data-value="all"]'); return { pressed: b.getAttribute('aria-pressed'), count: b.querySelector('.chip__count').textContent }; })()`);
+  check(allChip.pressed === 'true' && num(allChip.count) === num(s.count.split(' ')[0]), `${tag} Entwickeln → Raids: Filter "Alle" erwartet (${JSON.stringify(allChip)}, ${s.count})`);
+  await page.click('#filter-use button[data-value="all"]');
 
   // Raids mit Angriffstyp: genau die Rangliste aus den Daten.
   await page.click('#filter-use button[data-value="raid"]');
@@ -349,6 +360,16 @@ async function testDetail(page, vp) {
   rows = await levelTable(page);
   check(num(rows.find((r) => r.level === 40).cells[4]) === cost(mewtwo, 25, 40, { lucky: true }).stardust, `${tag} Glücks-Pokémon: Sternenstaub nicht halbiert`);
 
+  // Erst WP, dann IVs: Das Level wird mit den neuen IVs neu gesucht; die Statuszeile meldet es Screenreadern.
+  const cp30 = cpOf(mewtwo, 30, full);
+  await page.type('#cp', String(cp30));
+  await page.eval(`document.getElementById('cp').dispatchEvent(new Event('change'))`);
+  await sleep(80);
+  await page.click('#preset-full');
+  const synced = await page.eval(`({ level: document.getElementById('level-now').value, ok: document.getElementById('cp-feedback')?.classList.contains('cp-feedback--ok'), status: document.getElementById('mine-status').textContent })`);
+  check(synced.level === '30' && synced.ok, `${tag} WP ${cp30}, dann 15/15/15 → Level 30 erwartet: ${JSON.stringify(synced)}`);
+  check(/passen zu Level 30/.test(synced.status) && /Mit deinen IVs: \S/.test(synced.status), `${tag} Statuszeile: ${synced.status}`);
+
   // Reiter per Tastatur, Attacken-Tabelle.
   await page.click('#tab-werte');
   await page.key('ArrowRight');
@@ -396,6 +417,16 @@ async function testDetail(page, vp) {
   const shadow = byKey.get('crypto-mamoswine');
   check(num(rows.find((r) => r.level === 50).cells[6]) === cost(shadow, 20, 50).xl, `${tag} Crypto: XL-Kosten`);
 
+  // Mega einer Form mit Crypto-Version: "Erlöst" gilt auch hier (Power-ups gehen an die normale Form).
+  await page.goto(url('index.html', '#pokemon=charizard-mega-x'));
+  check(await page.eval(`Boolean(document.getElementById('opt-purified'))`), `${tag} Mega-Glurak X: Schalter "Erlöst" fehlt`);
+
+  // Rayquaza: Zenitstürmer nur per Meteorit, die anderen Spezial-Attacken per Top-TM.
+  await page.goto(url('index.html', '#pokemon=rayquaza'));
+  await page.click('#tab-attacken');
+  const badges = await page.eval(`[...document.querySelectorAll('#charged-table .badge--elite')].map((b) => b.closest('tr').querySelector('.move__name').textContent + ':' + b.textContent)`);
+  check(badges.includes('Zenitstürmer:Meteorit') && badges.some((b) => b.endsWith(':Top-TM')) && !badges.includes('Zenitstürmer:Top-TM'), `${tag} Rayquaza-Marken: ${badges.join(', ')}`);
+
   // Vorstufe: Hinweis "Entwickeln" mit Link auf die Entwicklung.
   await page.goto(url('index.html', '#pokemon=charmander'));
   s = await detailState(page);
@@ -405,6 +436,32 @@ async function testDetail(page, vp) {
   await page.click('#raid-rows a.rank-link');
   const ranking = await listState(page);
   check(ranking.tiles[0]?.key === DATA.raidTables.FIRE.normal[0], `${tag} Rangliste Feuer aus der Raid-Karte`);
+}
+
+// Zurück zeigt die Liste so, wie sie war: Suche und Filter gehören zum Verlaufseintrag. Eine Rangliste aus der
+// Pokémon-Seite zeigt dagegen alle Plätze (ohne die Suche).
+async function testHistory(page, vp) {
+  const tag = `[${vp.label}]`;
+  const search = () => page.eval(`document.getElementById('search').value`);
+  await page.goto(url('index.html'));
+  await page.type('#search', 'glurak');
+  await page.key('Escape');
+  await page.click('a.poke-tile[data-pokemon="charizard"]');
+  await sleep(120);
+  await page.click('#raid-rows a.rank-link');
+  await sleep(120);
+  let s = await listState(page);
+  check((await search()) === '' && s.tiles.length === 48 && s.tiles.every((t, i) => t.rank === i + 1), `${tag} Rangliste aus der Pokémon-Seite: ohne Suche, Plätze 1–48 erwartet`);
+  await page.eval('history.back()');
+  await sleep(150);
+  check((await page.eval(`document.getElementById('detail-title')?.textContent`)) === 'Glurak', `${tag} Zurück: Glurak erwartet`);
+  await page.eval('history.back()');
+  await sleep(150);
+  s = await listState(page);
+  const query = await search();
+  check(query === 'glurak' && s.tiles.length > 1 && s.tiles.every((t) => /Glurak/.test(byKey.get(t.key).name) && t.rank === null),
+    `${tag} Zurück: Liste mit Suche "glurak" erwartet (Suche "${query}", ${s.tiles.length} Kacheln: ${s.tiles.slice(0, 4).map((t) => t.key).join(', ')})`);
+  check((await page.eval('document.activeElement?.dataset?.pokemon ?? null')) === 'charizard', `${tag} Zurück: Fokus auf Glurak`);
 }
 
 // Jede Pokémon-Seite (bzw. jede n-te) mit allen drei Reitern: keine Fehler, kein Überlauf.
@@ -425,6 +482,11 @@ async function testAllPages(page, vp) {
           if (document.documentElement.scrollWidth > document.documentElement.clientWidth) overflow.push(key + ':' + tab);
         }
         if (!target.querySelector('#findings') || !target.querySelector('#detail-title').textContent) errors.push(key + ': leer');
+        // Nichts ragt aus seinem Feld (IV-Felder, verwandte Formen) – auch auf schmalen Handys.
+        const box = (n) => n.getBoundingClientRect();
+        if ([...target.querySelectorAll('.iv > *, .related__list li')].some((n) => box(n).right > box(n.parentElement).right + 1)) overflow.push(key + ':eng');
+        // Crypto-Pokémon lassen sich nicht tauschen.
+        if (Power.pokemon(key).shadow && /Tausch/.test(target.querySelector('#verdict-summary').textContent)) errors.push(key + ': Tausch bei Crypto');
       } catch (err) { errors.push(key + ': ' + err.message); }
     }
     // Dasselbe ohne Crypto (jede zehnte Seite).
@@ -454,6 +516,7 @@ for (const vp of VIEWPORTS) {
     await testStart(page, vp);
     await testBrowse(page, vp);
     await testDetail(page, vp);
+    await testHistory(page, vp);
     await testAllPages(page, vp);
     await testLegal(page, vp);
   } catch (err) {

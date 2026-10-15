@@ -46,11 +46,13 @@ const Browse = (() => {
 
   // Dynamax-Pokémon mit Max-Attacke dieses Typs, bester zuerst.
   function maxTop(type, limit = Infinity) {
-    return data.pokemon.filter((p) => p.rating.max?.attack.some((a) => a.type === type))
-      .map((p) => ({ p, a: p.rating.max.attack.find((a) => a.type === type) }))
-      .sort((x, y) => x.a.rank - y.a.rank)
-      .slice(0, limit);
+    return (data.maxTables[type] ?? []).slice(0, limit).map((key) => {
+      const p = Power.pokemon(key);
+      return { p, a: p.rating.max.attack.find((a) => a.type === type) };
+    });
   }
+  // Form, die den Platz erreicht: Gigadynamax (mit G-Max-Attacke) oder Dynamax.
+  const maxKind = (x) => (x.a.kind === 'gigantamax' ? `Gigadynamax${x.p.rating.max.move ? ` · ${x.p.rating.max.move}` : ''}` : 'Dynamax');
 
   // ---------- Bausteine ----------
 
@@ -130,7 +132,7 @@ const Browse = (() => {
         el('ol', { class: 'rank-rows', id: 'type-mega-list' }, megas.map((x) => rankRow(x.p, x.rank, x.entry?.grade ?? 0, raidDetail(x)))),
       ]) : null,
       dynamax.length ? section('type-max', `Beste ${typeName(type)}-Angreifer in Max-Kämpfen`, 'Nur Dynamax- und Gigadynamax-Exemplare aus Max-Kämpfen.', [
-        el('ol', { class: 'rank-rows', id: 'type-max-list' }, dynamax.map((x) => rankRow(x.p, x.a.rank, x.a.grade, x.p.rating.max.kinds.includes('gigantamax') ? 'Dynamax / Gigadynamax' : 'Dynamax'))),
+        el('ol', { class: 'rank-rows', id: 'type-max-list' }, dynamax.map((x) => rankRow(x.p, x.a.rank, x.a.grade, maxKind(x)))),
       ]) : null,
       section('type-all', `Alle ${typeName(type)}-Pokémon`, `${formatNumber(own.length)} Pokémon mit diesem Typ – beste Bewertung zuerst.`, [
         el('ul', { class: 'poke-grid', id: 'type-grid-list' }, shown.map((p) => el('li', {}, [Overview.tile(p)]))),
@@ -210,7 +212,7 @@ const Browse = (() => {
         if (state.top === 'mega') {
           return typeCard(type, raidTop(type, { megas: true, limit: 3 }).map((x) => cardRow(x.p, x.rank, x.entry?.grade ?? 0, x.entry ? `${moveName(x.entry.fast)} + ${moveName(x.entry.charged)}` : '')), `#rangliste=raid-${typeSlug(type)}-mega`);
         }
-        return typeCard(type, maxTop(type, 5).map((x) => cardRow(x.p, x.a.rank, x.a.grade, x.p.rating.max.kinds.includes('gigantamax') ? 'auch Gigadynamax' : 'Dynamax')), `#rangliste=max-${typeSlug(type)}`);
+        return typeCard(type, maxTop(type, 5).map((x) => cardRow(x.p, x.a.rank, x.a.grade, x.a.kind === 'gigantamax' ? 'Gigadynamax' : 'Dynamax')), `#rangliste=max-${typeSlug(type)}`);
       });
       const intro = {
         raid: 'Die fünf besten Angreifer je Typ gegen einen Raid-Boss, der schwach gegen diesen Typ ist.',

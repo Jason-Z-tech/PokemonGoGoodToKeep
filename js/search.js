@@ -7,10 +7,7 @@
 const Search = (() => {
   const { el, data } = Power;
   const MAX_SUGGESTIONS = 8;
-  const normalized = new Map(data.pokemon.map((p) => [p.key, {
-    name: Power.normalize(p.name),
-    all: Power.normalize(`${p.name} ${p.nameEn}`),
-  }]));
+  const index = new Map(data.pokemon.map((p) => [p.key, Power.searchIndex(p)]));
   const queryListeners = [];
   let input = null;
   let list = null;
@@ -27,12 +24,12 @@ const Search = (() => {
     const hits = [];
     for (const p of data.pokemon) {
       if (!Power.visible(p)) continue;
-      const n = normalized.get(p.key);
+      const n = index.get(p.key);
       let score = null;
       if (number !== null) score = p.dex === number ? 0 : String(p.dex).startsWith(q) ? 3 : null;
       else if (n.name.startsWith(q)) score = 0;
-      else if (n.all.split(' ').some((w) => w.startsWith(q))) score = 1;
-      else if (n.all.includes(q)) score = 2;
+      else if (n.text.split(' ').some((w) => w.startsWith(q))) score = 1;
+      else if (Power.matchesQuery(n, q)) score = 2;
       if (score !== null) hits.push({ p, score });
     }
     return hits.sort((a, b) => a.score - b.score || VARIANT_ORDER(a.p) - VARIANT_ORDER(b.p) || a.p.dex - b.p.dex
@@ -140,6 +137,8 @@ const Search = (() => {
     onQuery: (fn) => queryListeners.push(fn),
     query: () => input?.value ?? '',
     clear: () => { if (input) { input.value = ''; render(); notify(); } },
+    // Eingabe setzen, ohne die Liste zu benachrichtigen (Zurück stellt eine frühere Liste wieder her).
+    set: (value) => { if (input) { input.value = value; document.getElementById('search-clear').hidden = !value; close(); } },
     matches,
   };
 })();

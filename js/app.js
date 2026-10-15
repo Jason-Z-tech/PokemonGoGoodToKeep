@@ -103,8 +103,11 @@ const PowerApp = (() => {
       document.title = 'Top-Rankings – Power-Kompass';
     } else {
       document.title = BASE_TITLE;
-      // Ranglisten-Adresse: Filter setzen (nicht beim Zurückkehren aus einem Pokémon – dort bleibt alles, wie es war).
-      if (r.ranking && !backFromDetail) Overview.showRanking(parseRanking(r.ranking));
+      // Zurück/Vor: die Liste so zeigen, wie sie beim Verlassen war. Sonst bei einer Ranglisten-Adresse die
+      // Filter setzen (nicht beim Zurückkehren aus einem Pokémon ohne gemerkten Stand – dort bleibt alles).
+      const saved = restore ? history.state?.overview : null;
+      if (saved) Overview.restore(saved);
+      else if (r.ranking && !backFromDetail) Overview.showRanking(parseRanking(r.ranking));
     }
     setTabs(r.sub);
 
@@ -128,6 +131,8 @@ const PowerApp = (() => {
       if (scroll) { scrollToMain(); document.getElementById(next.view === 'detail' ? 'detail-title' : next.sub === 'all' ? 'all-title' : 'browse-title')?.focus({ preventScroll: true }); }
       return;
     }
+    // Stand der Liste "Alle Pokémon" am alten Eintrag merken, damit Zurück ihn wiederherstellt.
+    if (current?.view === 'list' && current.sub === 'all') history.replaceState({ ...history.state, overview: Overview.snapshot() }, '');
     history.pushState({ inApp: true, from: current ? hashOf(current) : null }, '', hash || window.location.pathname + window.location.search);
     show(next);
   }

@@ -75,7 +75,7 @@ const WEATHER = [
 ];
 
 // Attacken, die nur Platzhalter sind oder nur nach Erlösen/als Crypto kommen (Frustration, Rückkehr).
-const SKIPPED_MOVES = new Set(['FRUSTRATION', 'RETURN', 'STRUGGLE', 'TRANSFORM_FAST', 'SPLASH_FAST', 'STRUGGLE_BUG_FAST']);
+const SKIPPED_MOVES = new Set(['FRUSTRATION', 'RETURN', 'STRUGGLE', 'TRANSFORM_FAST', 'SPLASH_FAST']);
 
 // Attacken mit zufälligem Typ: in Raids nicht planbar.
 const RANDOM_TYPE_MOVES = new Set(['HIDDEN_POWER_FAST']);
@@ -101,6 +101,16 @@ const BATTLE_ONLY_FORMS = new Set(['MORPEKO_HANGRY', 'AEGISLASH_BLADE', 'DARMANI
 // Riffex ist seit dem 16.11.2024 als Dynamax-Pokémon im Spiel.
 const RELEASE_FIXES = new Set(['DITTO', 'SHEDINJA', 'SPEWPA', 'COSMOG', 'COSMOEM', 'TOXTRICITY', 'TOXTRICITY_AMPED', 'TOXTRICITY_LOW_KEY']);
 
+// PvPoke kennt neue Attacken oft früher als der Game Master (z. B. Zeitenlärm für Ur-Dialga, Mystoschwert für
+// Keldeo, Volttackle für Raichu). Seine Attacken-Listen ergänzen deshalb die Spieldaten. Abweichende Namen:
+const PVPOKE_MOVE_ALIASES = { FUTURE_SIGHT: 'FUTURESIGHT', TECHNO_BLAST_DOUSE: 'TECHNO_BLAST_WATER' };
+// Einträge, deren PvPoke-Name sich nicht aus dem Schlüssel ableiten lässt (Schlüssel -> PvPoke-IDs).
+const PVPOKE_KEY_ALIASES = {
+  keldeo: ['keldeo_ordinary', 'keldeo_resolute'], aegislash: ['aegislash_shield'], morpeko: ['morpeko_full_belly'],
+  tatsugiri: ['tatsugiri_curly'], 'mewtwo-a': ['mewtwo_armored'], 'zygarde-complete-fifty-percent': ['zygarde'],
+  'zygarde-complete-ten-percent': ['zygarde_10'], 'oricorio-pompom': ['oricorio_pom_pom'],
+};
+
 // Besonderheiten, die nicht in den Spieldaten stehen: kurze Hinweise auf der Detailseite (Spiel-ID der Art oder Form).
 const NOTES = {
   LUGIA: 'Crypto-Lugia gibt es nur als Apex-Form mit der exklusiven Attacke Luftstoß+; erlöst wird daraus Luftstoß++.',
@@ -108,7 +118,7 @@ const NOTES = {
   ZYGARDE: 'Die Zygarde-Formen tauschst du mit Zygarde-Zellen (Routen) um – 10 %, 50 % und Optimum haben eigene Werte.',
   SMEARGLE: 'Farbeagle lernt die Attacken, die es auf deinen Schnappschüssen sieht – nicht über TMs.',
   DITTO: 'Ditto verwandelt sich im Kampf in sein Gegenüber und übernimmt dessen Attacken – eine eigene Bewertung gibt es deshalb nicht.',
-  SHEDINJA: 'Ninjatom hat immer nur 1 KP: Jeder Treffer besiegt es. Hochleveln lohnt sich nur für die Sammlung.',
+  SHEDINJA: 'Ninjatom hat die Basis-Ausdauer 1 und damit auf jedem Level nur die Mindest-KP (10–13): Fast jeder Treffer besiegt es. Hochleveln lohnt sich nur für die Sammlung.',
 };
 
 // ---------- Hilfsfunktionen ----------
@@ -312,7 +322,9 @@ function canonicalForms(index) {
       const showForm = form && !(form.endsWith('_NORMAL') && !multiStat) && kept.length > 1;
       // Alle Vorlagen mit denselben Werten (z. B. Apex-Lugia "LUGIA_S"): für Crypto-Attacken.
       const siblings = list.filter((x) => statSignature(x.settings) === statSignature(t.settings));
-      result.push({ ...t, formId: showForm ? form : null, siblings });
+      // Weggefallene Formen, die sich anders entwickeln (Burmy mit Sand-/Lumpenumhang, Wuffels mit Eigenem Tempo).
+      const dropped = siblings.filter((x) => !kept.includes(x) && x.settings.form && x.settings.form !== form);
+      result.push({ ...t, formId: showForm ? form : null, siblings, dropped });
     }
   }
   return result;
@@ -326,6 +338,7 @@ function releaseIndex(pvpoke) {
   const released = new Set();
   const shadow = new Set();
   const pvpokeMegas = pvpoke.pokemon.filter((p) => p.released !== false && (p.tags ?? []).includes('mega'));
+  const byId = new Map(pvpoke.pokemon.map((p) => [p.speciesId, p]));
   for (const p of pvpoke.pokemon) {
     const types = p.types.filter((t) => t !== 'none').map((t) => t.toUpperCase());
     const key = statKey(p.dex, p.baseStats, types);
@@ -333,7 +346,7 @@ function releaseIndex(pvpoke) {
     if (p.released === false) continue;
     if (isShadow) shadow.add(key); else released.add(key);
   }
-  return { released, shadow, pvpokeMegas };
+  return { released, shadow, pvpokeMegas, byId };
 }
 
 // ---------- Namen ----------
@@ -376,7 +389,8 @@ function englishName(textsEn, p) {
     const suffix = p.formId.slice(p.speciesId.length + 1);
     const regional = { ALOLA: 'Alolan', GALARIAN: 'Galarian', HISUIAN: 'Hisuian', PALDEA: 'Paldean' }[suffix.split('_')[0]];
     const label = regional ?? (textsEn.get(`form_${p.formId.toLowerCase()}`) ?? textsEn.get(`form_${suffix.toLowerCase()}`) ?? titleCase(suffix)).replace(/-?\n/g, '');
-    base = regional ? `${regional} ${species}` : label.includes(species) ? label : `${species} ${label}`;
+    const breed = regional && suffix.includes('_') ? titleCase(suffix.slice(suffix.indexOf('_') + 1)) : null;
+    base = regional ? `${regional} ${species}${breed ? ` (${breed})` : ''}` : label.includes(species) ? label : `${species} ${label}`;
   }
   const prefix = p.variant === 'primal' ? 'Primal ' : p.variant === 'mega' ? 'Mega ' : '';
   const letter = /_(X|Y)$/.exec(p.tempEvoId ?? '')?.[1];
@@ -402,7 +416,7 @@ function buildPokemon(index, texts, releases, hints) {
     .filter((id) => id && index.moves.has(id) && !SKIPPED_MOVES.has(id))
     .map((id) => { moveIds.add(id); return id; });
 
-  for (const { dex, settings: s, formId, siblings } of canonicalForms(index)) {
+  for (const { dex, settings: s, formId, siblings, dropped } of canonicalForms(index)) {
     const speciesId = s.pokemonId;
     const types = [typeKey(s.type), typeKey(s.type2)].filter(Boolean);
     const base = { atk: s.stats.baseAttack, def: s.stats.baseDefense, sta: s.stats.baseStamina };
@@ -436,11 +450,16 @@ function buildPokemon(index, texts, releases, hints) {
       shadow: false,
       family: s.familyId ?? null,
       fast, charged, eliteFast, eliteCharged,
-      tradable: s.isTradable !== false,
+      // Der Game Master lässt "isTradable" bei nicht tauschbaren Arten weg. Fusions- und Kronen-Formen gelten wie ihre Art.
+      tradable: s.isTradable === true || index.templates.some((t) => t.settings.pokemonId === speciesId && t.settings.isTradable === true),
       buddyKm: s.kmBuddyDistance ?? null,
       thirdMove: s.thirdMove ? { stardust: s.thirdMove.stardustToUnlock ?? 0, candy: s.thirdMove.candyToUnlock ?? 0 } : null,
       purification: s.shadow ? { stardust: s.shadow.purificationStardustNeeded, candy: s.shadow.purificationCandyNeeded } : null,
       upgradeOverride: index.upgradeOverrides.has(speciesId),
+      // Attacken, die es nicht per Top-TM gibt, sondern nur über ein Event-Item (Zenitstürmer per Meteorit).
+      specialMoves: (s.nonTmCinematicMoves ?? []).map((id) => moveName(index, id)).filter(Boolean),
+      siblingBranches: dropped.flatMap((t) => (t.settings.evolutionBranch ?? [])
+        .map((b) => ({ ...b, fromForm: germanName(texts, dex, speciesId, t.settings.form) }))),
       settings: s, // nur im Build: Entwicklungen, Formwechsel
     };
     pokemon.push(entry);
@@ -487,7 +506,47 @@ function buildPokemon(index, texts, releases, hints) {
     }
   }
   addMissingMegas(index, pokemon, texts, releases.pvpokeMegas, moveIds);
+  addPvpokeMoves(index, pokemon, releases, moveIds, hints);
   return { pokemon, moveIds };
+}
+
+// Attacken, die PvPoke für eine Form kennt, die Spieldaten aber (noch) nicht: in den Attacken-Pool übernehmen.
+// Elite-/Legacy-Attacken bei PvPoke zählen als Top-TM-Attacken.
+function pvpokeIdsOf(p) {
+  const key = p.shadow ? p.normalKey : p.key;
+  if (PVPOKE_KEY_ALIASES[key]) return PVPOKE_KEY_ALIASES[key];
+  const id = key.replace(/-alola\b/, '-alolan').replace(/-paldea-/, '-').replace(/-paldea$/, '-paldean').replace(/-/g, '_');
+  return [id];
+}
+
+function addPvpokeMoves(index, pokemon, releases, moveIds, hints) {
+  const unknown = new Set();
+  for (const p of pokemon) {
+    if (p.speciesId === 'SMEARGLE') continue; // Farbeagle lernt Attacken über Schnappschüsse
+    for (const id of pvpokeIdsOf(p)) {
+      const q = releases.byId.get(id);
+      if (!q) continue;
+      const elite = new Set([...(q.eliteMoves ?? []), ...(q.legacyMoves ?? [])]);
+      const add = (raw, fastMove) => {
+        const name = PVPOKE_MOVE_ALIASES[raw] ?? raw;
+        const gmId = fastMove ? `${name}_FAST` : name;
+        if (SKIPPED_MOVES.has(gmId) || /^HIDDEN_POWER/.test(name)) return;
+        if (!index.moves.has(gmId)) { unknown.add(raw); return; }
+        const all = fastMove ? [p.fast, p.eliteFast] : [p.charged, p.eliteCharged];
+        if (all.some((list) => list.includes(gmId)) || p.plusMove === gmId) return;
+        moveIds.add(gmId);
+        const target = elite.has(raw) ? (fastMove ? 'eliteFast' : 'eliteCharged') : (fastMove ? 'fast' : 'charged');
+        p[target] = [...p[target], gmId];
+        (p.addedMoves ??= []).push(gmId);
+      };
+      for (const m of q.fastMoves ?? []) add(m, true);
+      for (const m of q.chargedMoves ?? []) add(m, false);
+    }
+  }
+  if (unknown.size) hints.push(`PvPoke-Attacken ohne Gegenstück in den Spieldaten (ignoriert): ${[...unknown].sort().join(', ')}`);
+  const added = pokemon.filter((p) => p.addedMoves && !p.shadow && p.variant === 'normal');
+  if (added.length) console.log(`   ${added.length} Pokémon mit Attacken von PvPoke ergänzt (Game Master noch nicht aktuell)`);
+  for (const p of pokemon) delete p.addedMoves;
 }
 
 function megaEntry(index, texts, root, tempEvoId, types, base, moveIds) {
@@ -556,6 +615,8 @@ function buildMoves(index, texts, moveIds) {
       type: RANDOM_TYPE_MOVES.has(id) ? null : typeKey(m.pokemonType),
       power: m.power ?? 0,
       durationS: m.durationMs / 1000,
+      // Beginn des Schadensfensters (GamePress-Korrektur für Lade-Attacken mit 100 Energie).
+      ...(id.endsWith('_FAST') ? {} : { dwsS: (m.damageWindowStartMs ?? 0) / 1000 }),
       energy: m.energyDelta ?? 0,
       fast: id.endsWith('_FAST'),
       ...(plus ? { plus: true } : {}),
@@ -584,11 +645,15 @@ function linkFamilies(pokemon, texts) {
     if (p.variant !== 'normal' || p.shadow) continue;
     const s = p.settings;
     const evolutions = [];
-    for (const b of s.evolutionBranch ?? []) {
+    for (const b of [...(s.evolutionBranch ?? []), ...(p.siblingBranches ?? [])]) {
       if (!b.evolution || b.temporaryEvolution) continue;
       const target = resolveForm(pokemon, b.evolution, b.form);
       if (!target || target.key === p.key) continue;
+      // Entwicklung einer weggefallenen Form: nur, wenn sie zu einer eigenen Form führt (nicht bei rein optischen Formen).
+      if (b.fromForm && (evolutions.some((e) => e.key === target.key) || (b.form && target.form !== b.form)
+        || (s.formChange ?? []).some((fc) => (fc.availableForm ?? []).includes(b.form)))) continue;
       const conditions = [];
+      if (b.fromForm) conditions.push(`nur als ${b.fromForm}`);
       if (b.evolutionItemRequirement) conditions.push(`${b.evolutionItemRequirementCost ? `${b.evolutionItemRequirementCost}× ` : ''}${itemName(texts, b.evolutionItemRequirement)}`);
       if (b.lureItemRequirement) conditions.push(`an einem ${itemName(texts, b.lureItemRequirement)}`);
       if (b.kmBuddyDistanceRequirement) conditions.push(`${b.kmBuddyDistanceRequirement} km als Kumpel`);
@@ -640,7 +705,9 @@ function linkFamilies(pokemon, texts) {
     const normal = byKey.get(p.normalKey);
     const crypto = (k) => byKey.get(`crypto-${k}`)?.key ?? null;
     if (normal.evolutions) p.evolutions = normal.evolutions.map((e) => ({ ...e, key: crypto(e.key) ?? e.key }));
-    if (normal.preEvo) p.preEvo = crypto(normal.preEvo) ?? normal.preEvo;
+    // Vorstufe nur, wenn es sie auch als Crypto gibt (Crypto-Kicklee kommt nicht von Rabauz).
+    const pre = normal.preEvo && crypto(normal.preEvo);
+    if (pre) p.preEvo = pre;
   }
 }
 
@@ -709,7 +776,7 @@ function applyRaidRankings(data) {
   for (const p of pokemon) {
     if (!p.rating?.raid) continue;
     p.rating.raid.sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
-    const keep = p.rating.raid.filter((r, i) => i < 1 || r.grade > 0 || r.gradeNS > 0).slice(0, 6);
+    const keep = p.rating.raid.filter((r, i) => i < 1 || r.grade > 0 || r.gradeNS > 0);
     p.rating.raid = keep;
   }
   return tables;
@@ -727,51 +794,65 @@ function applyMax(pokemon, dyna, hints) {
   if (!dyna) return null;
   const today = new Date().toISOString().slice(0, 10);
   const released = dyna.pokemon.filter((d) => !d.releaseDate || d.releaseDate <= today);
+  // Dynamax- und Gigadynamax-Eintrag derselben Art landen beim selben Pokémon.
+  const targetOf = (d) => (d.formId ? resolveForm(pokemon, d.speciesId, d.formId)
+    : pokemon.find((p) => p.variant === 'normal' && !p.shadow && p.speciesId === d.speciesId
+      && (!p.formId || p.formId === `${d.speciesId}_NORMAL` || p.formId === `${d.speciesId}_STANDARD`)));
+  const targets = new Map();
+  for (const d of released) {
+    const t = targetOf(d);
+    if (t) targets.set(d, t);
+    else hints.push(`Dyna-Kompass: ${d.name} (${d.speciesId}/${d.formId}) keinem Pokémon zugeordnet.`);
+  }
   const roles = [];
-  for (const d of released) {
-    const fast = d.fastMoves;
-    if (!fast.length) continue;
-    const role = (type, power) => {
-      const stab = d.types.includes(type);
-      return { d, type, damage: (power * d.atk40 * (stab ? dyna.rules.stab : 1)) / 100 };
-    };
+  for (const d of targets.keys()) {
+    if (!d.fastMoves.length) continue;
+    const role = (type, power) => ({ d, type, damage: (power * d.atk40 * (d.types.includes(type) ? dyna.rules.stab : 1)) / 100 });
     if (d.kind === 'gigantamax' && d.gmaxMove) roles.push(role(d.gmaxMove.type, dyna.rules.gmaxMovePower));
-    else for (const type of new Set(fast.map((m) => m.type))) roles.push(role(type, dyna.rules.maxMovePower));
+    else for (const type of new Set(d.fastMoves.map((m) => m.type))) roles.push(role(type, dyna.rules.maxMovePower));
   }
-  const bulk = (d) => d.def40 * d.hp40;
-  const bulkRank = [...released].sort((a, b) => bulk(b) - bulk(a));
+  // Ranglisten je Typ: jedes Pokémon einmal, mit seiner besten Max-Attacke (Dynamax oder Gigadynamax).
   const tables = {};
+  const entries = new Map(); // Pokémon-Schlüssel -> { kinds, move, attack: [...] }
   for (const type of Object.keys(TYPES)) {
-    const list = roles.filter((r) => r.type === type).sort((a, b) => b.damage - a.damage);
-    tables[type] = list;
+    const best = new Map();
+    for (const r of roles.filter((x) => x.type === type).sort((a, b) => b.damage - a.damage)) {
+      const key = targets.get(r.d).key;
+      if (!best.has(key)) best.set(key, r);
+    }
+    const list = [...best.entries()];
+    tables[type] = list.map(([key]) => key);
+    const top = list[0]?.[1].damage ?? 1;
+    list.forEach(([key, r], i) => {
+      const e = entries.get(key) ?? { attack: [] };
+      e.attack.push({ type, rank: i + 1, of: list.length, ratio: round(r.damage / top, 3), grade: gradeByRatio(r.damage / top, MAX_GRADES), kind: r.d.kind });
+      entries.set(key, e);
+    });
   }
-  let matched = 0;
-  for (const d of released) {
-    const target = d.formId ? resolveForm(pokemon, d.speciesId, d.formId)
-      : pokemon.find((p) => p.variant === 'normal' && !p.shadow && p.speciesId === d.speciesId && (!p.formId || /_(NORMAL|STANDARD)$/.test(p.formId)));
-    if (!target) { hints.push(`Dyna-Kompass: ${d.name} (${d.speciesId}/${d.formId}) keinem Pokémon zugeordnet.`); continue; }
-    matched++;
-    const best = Object.entries(tables).map(([type, list]) => {
-      const i = list.findIndex((r) => r.d === d);
-      if (i < 0) return null;
-      return { type, rank: i + 1, of: list.length, ratio: round(list[i].damage / list[0].damage, 3), grade: gradeByRatio(list[i].damage / list[0].damage, MAX_GRADES) };
-    }).filter(Boolean).sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
-    const tank = bulkRank.indexOf(d) + 1;
-    const entry = {
-      kind: d.kind,
-      move: d.kind === 'gigantamax' ? d.gmaxMove?.name ?? null : null,
-      attack: best.slice(0, 3),
-      tankRank: tank,
-      tankOf: bulkRank.length,
-      grade: Math.max(best[0]?.grade ?? 0, tank <= 10 ? 2 : tank <= 25 ? 1 : 0),
-    };
+  // Ausdauer (Tank): jedes Pokémon einmal.
+  const bulk = (d) => d.def40 * d.hp40;
+  const tankList = [...new Map([...targets.keys()].sort((a, b) => bulk(b) - bulk(a)).map((d) => [targets.get(d).key, d])).keys()];
+  for (const [d, target] of targets) {
+    const e = entries.get(target.key) ?? { attack: [] };
+    e.kinds = [...new Set([...(e.kinds ?? []), d.kind])];
+    if (d.kind === 'gigantamax' && d.gmaxMove) e.move = d.gmaxMove.name;
+    entries.set(target.key, e);
+  }
+  for (const [key, e] of entries) {
+    const target = pokemon.find((p) => p.key === key);
+    const tankRank = tankList.indexOf(key) + 1;
+    e.attack.sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
     target.rating ??= {};
-    // Dynamax und Gigadynamax derselben Art: die bessere Bewertung zählt, beide werden genannt.
-    const prev = target.rating.max;
-    if (!prev || entry.grade > prev.grade) target.rating.max = { ...entry, kinds: [...new Set([...(prev?.kinds ?? []), d.kind])] };
-    else prev.kinds = [...new Set([...prev.kinds, d.kind])];
+    target.rating.max = {
+      kinds: e.kinds,
+      move: e.move ?? null,
+      attack: e.attack,
+      tankRank,
+      tankOf: tankList.length,
+      grade: Math.max(e.attack[0]?.grade ?? 0, tankRank <= 10 ? 2 : tankRank <= 25 ? 1 : 0),
+    };
   }
-  return { matched, total: released.length };
+  return { matched: targets.size, total: released.length, tables };
 }
 
 // ---------- Gesamturteil ----------
@@ -807,12 +888,16 @@ function applyVerdicts(pokemon) {
     }
     return best;
   };
+  // "Erst entwickeln" nur für Vorstufen ohne eigenen Nutzen; taugt die Vorstufe selbst schon etwas, bleibt ihr
+  // Urteil, und die stärkere Entwicklung ist nur ein Hinweis (better).
+  const mark = (p, evo, own, evolveField, betterField) => {
+    if (!evo || evo.grade <= own) return;
+    p.rating[own === 0 ? evolveField : betterField] = evo;
+  };
   for (const p of pokemon) {
-    const evo = bestEvolution(p, 'grade');
-    if (evo && evo.grade > p.rating.grade) p.rating.evolve = evo;
+    mark(p, bestEvolution(p, 'grade'), p.rating.grade, 'evolve', 'better');
     // Crypto-Vorstufen entwickeln sich zu Crypto-Pokémon – ohne Crypto gibt es sie nicht.
-    const evoNS = p.shadow ? null : bestEvolution(p, 'gradeNS');
-    if (evoNS && evoNS.grade > p.rating.gradeNS) p.rating.evolveNS = evoNS;
+    if (!p.shadow) mark(p, bestEvolution(p, 'gradeNS'), p.rating.gradeNS, 'evolveNS', 'betterNS');
   }
 }
 
@@ -973,11 +1058,13 @@ async function main() {
   console.log('4/6 Max-Kämpfe (Dyna-Kompass) zuordnen und Urteile vergeben …');
   const max = applyMax(pokemon, dyna, hints);
   if (max) console.log(`   ${max.matched} von ${max.total} Dynamax-/Gigadynamax-Pokémon zugeordnet`);
+  data.maxTables = max?.tables ?? {};
   applyVerdicts(pokemon);
   for (const p of pokemon) {
     const note = NOTES[p.formId] ?? NOTES[p.speciesId];
     if (note) p.note = note;
     delete p.settings;
+    delete p.siblingBranches;
   }
   data.raidTables = raidTables;
 

@@ -104,11 +104,14 @@ const PowerCalc = (() => {
     const feps = fast.energy / fast.durationS;
     const cdps = chargedDamage / charged.durationS;
     const cost = -charged.energy;
-    const ceps = cost / charged.durationS;
+    // Lade-Attacken mit 100 Energie: Energie über 100 verfällt – im Schnitt eine halbe Sofort-Attacke und der
+    // Schaden, den man bis zum Treffer einsteckt.
+    const spent = cost >= 100 ? cost + 0.5 * fast.energy + 0.5 * y * (charged.dwsS ?? 0) : cost;
+    const ceps = spent / charged.durationS;
     const x = 0.5 * cost + 0.5 * fast.energy;
     const cycle = (fdps * ceps + cdps * feps) / (ceps + feps);
     let dps = cycle + ((cdps - fdps) / (ceps + feps)) * (0.5 - x / stats.hp) * y;
-    dps = Math.max(dps, fdps); // Lade-Attacke lohnt sich nicht: nur Sofort-Attacken
+    dps = Math.max(Math.min(dps, cdps), fdps); // Lade-Attacke lohnt sich nicht: nur Sofort-Attacken
     const tdo = dps * (stats.hp / y);
     return { dps, tdo, score: Math.pow(dps * dps * dps * tdo, 0.25) };
   }

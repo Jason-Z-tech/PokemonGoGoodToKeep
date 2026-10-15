@@ -38,6 +38,8 @@ const Power = (() => {
   const visible = (p) => settings.crypto || !p.shadow;
   const gradeOf = (p) => (settings.crypto ? p.rating.grade : p.rating.gradeNS);
   const evolveOf = (p) => (settings.crypto ? p.rating.evolve : p.rating.evolveNS) ?? null;
+  // Stärkere Entwicklung einer Vorstufe, die selbst schon etwas taugt (nur ein Hinweis, kein "Erst entwickeln").
+  const betterOf = (p) => (settings.crypto ? p.rating.better : p.rating.betterNS) ?? null;
   // Werte eines Raid-Eintrags (ein Angriffstyp) im aktuellen Modus.
   const raidView = (x) => (settings.crypto || !x
     ? x
@@ -74,6 +76,19 @@ const Power = (() => {
 
   // Suche ohne Rücksicht auf Groß-/Kleinschreibung und Akzente ("pokemon" findet "Pokémon").
   const normalize = (text) => text.toLowerCase().replace(/ß/g, 'ss').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9♀♂]+/g, ' ').trim();
+
+  // Suchtext eines Pokémon: deutscher und englischer Name (Umlaute auch als ae/oe/ue), Pokédex-Nummer auch
+  // dreistellig wie auf den Kacheln (#025). "compact" ohne Leerzeichen: "hooh" findet Ho-Oh, "mrmime" Pantimos.
+  const spellOut = (text) => text.replace(/[äÄ]/g, 'ae').replace(/[öÖ]/g, 'oe').replace(/[üÜ]/g, 'ue');
+  function searchIndex(p) {
+    const names = [...new Set([p.name, p.nameEn, spellOut(p.name)].filter(Boolean).map(normalize))];
+    return {
+      name: names[0],
+      text: `${names.join(' ')} ${p.dex} ${String(p.dex).padStart(3, '0')}`,
+      compact: names.map((n) => n.replace(/ /g, '')).join(' '),
+    };
+  }
+  const matchesQuery = (index, q) => index.text.includes(q) || index.compact.includes(q.replace(/ /g, ''));
 
   // ---------- Bewertung ----------
 
@@ -133,8 +148,8 @@ const Power = (() => {
     return list;
   }
 
-  function eliteBadge(text = 'Elite-TM') {
-    return el('span', { class: 'badge badge--elite', text, title: 'Nur mit Elite-TM, von Community Days oder bei bestimmten Events erhältlich' });
+  function eliteBadge(text = 'Top-TM', title = 'Nur mit Top-Sofort- bzw. Top-Lade-TM, an Community Days oder bei Events') {
+    return el('span', { class: 'badge badge--elite', text, title });
   }
 
   // Ohne Bild (Plan B oder seltene Form): Pokédex-Nummer auf einem Verlauf der Typfarben.
@@ -191,8 +206,8 @@ const Power = (() => {
 
   return {
     data, ready, TYPE_ORDER, GRADES, EVOLVE, CLASSES,
-    settings, setCrypto, onSettingsChange, visible, gradeOf, evolveOf, raidView, raidList,
-    el, formatNumber, formatLevel, formatPercent, formatDate, slugOf, normalize, ivPercent,
+    settings, setCrypto, onSettingsChange, visible, gradeOf, evolveOf, betterOf, raidView, raidList,
+    el, formatNumber, formatLevel, formatPercent, formatDate, slugOf, normalize, searchIndex, matchesQuery, ivPercent,
     verdictOf, shortReason,
     typeChip, typeDots, verdictBadge, gradeBadge, badges, eliteBadge, pokemonArt, meter, pokemonLink, renderSources,
     pokemon: (key) => byKey.get(key) ?? null,

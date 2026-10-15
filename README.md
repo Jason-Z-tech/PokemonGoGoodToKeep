@@ -6,27 +6,31 @@ Seite, wie gut es in **Raids und Arenen** ist, seine Werte auf jedem Level und w
 Raid-Konter stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass/), Max-Kämpfe im
 [Dyna-Kompass](https://jason-z-tech.github.io/dyna-kompass/). Trainerkämpfe (GO-Kampfliga) bewertet die Seite bewusst nicht.
 
-- **Oben auf jeder Seite:** die **Suche** (deutsch, englisch oder Pokédex-Nummer) mit Vorschlägen – Pfeiltasten und
-  Enter oder antippen öffnet das Pokémon, „Alle Treffer“ zeigt sie in der Liste – und der Schalter
+- **Oben auf jeder Seite:** die **Suche** (deutsch, englisch oder Pokédex-Nummer wie „445“ oder „#025“; auch ohne
+  Bindestrich wie „hooh“ und mit ae/oe/ue statt Umlaut) mit Vorschlägen – Pfeiltasten und Enter oder antippen öffnet
+  das Pokémon, „Alle Treffer“ zeigt sie in der Liste – und der Schalter
   **„Crypto-Pokémon“**: An zählen Crypto-Pokémon überall mit; aus fehlen sie in allen Listen, und Plätze und
   Bewertungen sind ohne sie gerechnet (ein normales Mamutel steht dann z. B. bei Eis auf Platz 5 statt 8 und ist
   „Spitze“ statt „Lohnt sich“).
 - **Drei Ansichten** (Reiter über der Liste):
   - **Alle Pokémon:** jedes Pokémon mit Urteil – „Spitze“, „Lohnt sich“, „Nische“, „Lohnt nicht“ oder „Entwickeln“
     (Vorstufe: erst entwickeln, dann leveln) – und dem wichtigsten Grund („Raids: Platz 3 Feuer“). Filter nach
-    Bewertung, Einsatz (Raids & Arenen, Max-Kämpfe), Typ und Art (Normal, Legendär & Mysteriös, Mega & Proto, nur
-    Crypto). Mit Einsatz „Raids“ und einem Angriffstyp wird die Liste zur vollständigen Rangliste dieses Typs.
+    Bewertung, Einsatz (Raids & Arenen, Max-Kämpfe), Typ und Art (Normal, Legendär/Mysteriös/Ultrabestien, Mega &
+    Proto, nur Crypto). Mit Einsatz „Raids“ und einem Angriffstyp wird die Liste zur vollständigen Rangliste dieses
+    Typs. Zurück im Browser zeigt die Liste wieder so, wie sie war (Suche, Filter, Anzahl).
   - **Nach Typ:** 18 Typ-Knöpfe. Je Typ: wogegen er stark ist und wogegen seine Pokémon schwach sind, die 10 besten
     Raid-Angreifer, die 3 besten Megas, die 5 besten Dynamax-Pokémon und alle Pokémon dieses Typs (beste zuerst).
   - **Top-Rankings:** die besten Raid-Angreifer über alle Typen (jeweils in ihrem besten Typ), die Top 5 je Typ,
     die Top 3 Megas je Typ und die Top 5 je Typ in Max-Kämpfen.
 - **Pokémon-Seite:** oben das Urteil mit Begründung und Links zu Crypto-, Mega- und Vorstufen/Entwicklungen.
   Darunter **„Dein Pokémon“**: IVs (standardmäßig 15/15/15 = 100 %, Vorlagen für Glücks-Minimum 12/12/12 und
-  Raid-Minimum 10/10/10), „Level jetzt“ (oder WP eingeben – die Seite findet das Level), Glücks-Pokémon, Erlöst,
-  Bester Kumpel und bei Megas das Mega-Level (Basis, High, Max, Super-Max). Das Urteil „Mit deinen IVs“ ändert sich
-  mit den Eingaben. Drei Reiter:
+  Raid-Minimum 10/10/10), „Level jetzt“ (oder WP eingeben – die Seite findet das Level, auch wenn die IVs danach
+  kommen), Glücks-Pokémon, Erlöst (auch auf der Mega-Seite), Bester Kumpel und bei Megas das Mega-Level (Basis, High,
+  Max, Super-Max). Das Urteil „Mit deinen IVs“ ändert sich mit den Eingaben (und wird Screenreadern angesagt). Drei
+  Reiter:
   - **Bewertung:** Raids & Arenen (Platz je Angriffstyp, beste Attacken, DPS/TDO auf Level 40 und 50 mit deinen IVs,
-    Hinweis auf nötige Elite-Attacken), Mega/Proto (Boni je Mega-Level, Zusatz-Lade-Attacke „+“, Super-Max-WP-Boost),
+    Hinweis auf nötige Top-TM-Attacken bzw. den Meteoriten für Zenitstürmer), Mega/Proto (Boni je Mega-Level,
+    Zusatz-Lade-Attacke „+“, Super-Max-WP-Boost),
     Max-Kämpfe (nur Dynamax-Exemplare) und Besonderheiten (Formwechsel wie König des Schwertes, Fusionen wie Schwarzes
     Kyurem, Erlösen, zweite Lade-Attacke, Apex-Attacken, Kumpel-Distanz).
   - **Werte & Kosten:** WP, Angriff, Verteidigung und KP auf jedem Level von 1 bis 50 (auf Wunsch mit halben Leveln,
@@ -60,7 +64,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html` und `datenschutz.html` den Zusatz
-`?v=2026-10-15-2` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
+`?v=2026-10-15-3` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
 Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und
 neue Skripte mischen.
 
@@ -75,18 +79,21 @@ node tests/e2e.mjs                                                       # lokal
 node tests/e2e.mjs --url https://jason-z-tech.github.io/PokemonGoGoodToKeep/   # veröffentlichte Seite
 ```
 
-Startet ein unsichtbares Chrome (oder Edge) und klickt die Seite mit echten Mausklicks durch – auf Desktop-, Tablet-
-und Handy-Breite: Liste, „Weitere anzeigen“, Suche oben (deutsch, englisch, Nummer; Vorschläge, Escape, Pfeiltasten
-und Enter öffnen ein Pokémon), jeder Bewertungs-Filter (Anzahl wie in den Daten), die Raid-Ranglisten je Typ
+Startet ein unsichtbares Chrome (oder Edge) und klickt die Seite mit echten Mausklicks durch – auf Desktop-, Tablet-,
+Handy- und schmaler Handy-Breite (320 px): Liste, „Weitere anzeigen“, Suche oben (deutsch, englisch, Nummer, „#025“,
+„hooh“, „ruestung“; Vorschläge, Escape, Pfeiltasten und Enter öffnen ein Pokémon), jeder Bewertungs-Filter (Anzahl wie
+in den Daten; „Entwickeln“ fällt beim Wechsel des Einsatzes weg), die Raid-Ranglisten je Typ
 (Reihenfolge und Plätze wie in den Daten, Megas getrennt), der Crypto-Schalter (ohne Crypto: keine Crypto-Pokémon,
 Plätze neu gezählt, Bewertungen ohne sie), Filter zurücksetzen, die Ansicht „Nach Typ“ (Top 10, Megas, nur Pokémon
 des Typs, zurück mit Fokus auf dem Eintrag), „Top-Rankings“ (Sortierung, Karten je Typ wie die Ranglisten),
-Pokémon öffnen und zurück, IV-Eingabe, Vorlagen, halbe Level, Bester Kumpel, Level jetzt, WP-Eingabe,
-Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher), Reiter per Tastatur und die
-Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
+Pokémon öffnen und zurück, IV-Eingabe, Vorlagen, halbe Level, Bester Kumpel, Level jetzt, WP-Eingabe (auch erst WP,
+dann IVs; Statuszeile für Screenreader), Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher),
+„Erlöst“ auf der Mega-Seite, die Marken Top-TM und Meteorit, Reiter per Tastatur, Zurück aus einer Rangliste (Liste
+mit Suche wie vorher) und die Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
 Level 40 und 4724 auf Level 50, 270 000 Sternenstaub und 304 Bonbons bis Level 40, 296 Bonbons XL bis 50, Crypto 360,
-Erlöst 272). Auf dem Desktop wird jede Pokémon-Seite mit allen drei Reitern gezeichnet (auf Tablet und Handy jede
-siebte bzw. fünfte), zusätzlich jede zehnte ohne Crypto – ohne Fehler und ohne seitlichen Überlauf.
+Erlöst 272). Auf dem Desktop wird jede Pokémon-Seite mit allen drei Reitern gezeichnet (auf Tablet, Handy und schmalem
+Handy jede siebte, fünfte bzw. dreizehnte), zusätzlich jede zehnte ohne Crypto – ohne Fehler, ohne seitlichen Überlauf
+und ohne Felder, die aus ihrem Rahmen ragen.
 Benötigt Node.js ab Version 22 und Chrome oder Edge.
 
 ## Daten aktualisieren
@@ -120,11 +127,13 @@ Das Urteil richtet sich nach **Raids und Arenen** (bester Angriffstyp, bei norma
   getrennt, weil pro Person nur eine aktiv ist) gegen einen 5-Sterne-Boss (Verteidigung 200), der gegen diesen Typ
   schwach ist (×1,6) und gegen alle anderen neutral. Level 40, 15/15/15, beste Attacken (Lade-Attacke dieses Typs,
   Sofort-Attacke beliebig, Kraftreserve nicht). DPS und TDO nach GamePress („Comprehensive DPS“, eingehender Schaden
-  y = 900 / Verteidigung), Wertung (DPS³ × TDO)<sup>¼</sup>. **Spitze:** die fünf Besten des Typs; **Lohnt sich:**
+  y = 900 / Verteidigung; bei Lade-Attacken mit 100 Energie verfällt überschüssige Energie), Wertung
+  (DPS³ × TDO)<sup>¼</sup>. **Spitze:** die fünf Besten des Typs; **Lohnt sich:**
   mindestens 90 % der Wertung des Fünftbesten; **Nische:** mindestens 80 %. Megas: Spitze ab 95 % der besten Mega,
-  Lohnt sich ab 85 %, Nische ab 75 %. Braucht ein Pokémon dafür eine Elite-Attacke, sagt die Seite, wie es ohne steht.
+  Lohnt sich ab 85 %, Nische ab 75 %. Braucht ein Pokémon dafür eine Top-TM-Attacke (oder Zenitstürmer per
+  Meteorit), sagt die Seite, wie es ohne steht.
 - **Ohne Crypto:** Dieselben Ranglisten ohne Crypto-Pokémon, mit dem Fünftbesten ohne Crypto als Vergleich – Plätze
-  und Stufen (Felder `rankNS`, `gradeNS`, `evolveNS` in den Daten) gelten, wenn der Schalter aus ist.
+  und Stufen (Felder `rankNS`, `gradeNS`, `evolveNS`, `betterNS` in den Daten) gelten, wenn der Schalter aus ist.
 - **Mit deinen IVs:** In Raids zählen IVs wenig – erst unter 94 % der Wertung von 15/15/15 sinkt die Stufe um eine
   („Der Angriff ist zu niedrig“).
 - **Mega & Proto:** Eine Mega zählt für ihre normale Form mit (wer die normale Form hochlevelt, levelt die Mega mit).
@@ -135,8 +144,10 @@ Das Urteil richtet sich nach **Raids und Arenen** (bester Angriffstyp, bei norma
   für alle anderen im Raid, nicht für die Mega selbst.
 - **Max-Kämpfe:** Nur für Dynamax-/Gigadynamax-Exemplare – deshalb zählen sie nicht zum Urteil, sondern stehen getrennt
   (Platz als Angreifer je Typ und als Tank, Daten des Dyna-Kompass).
-- **Entwickeln:** Taugt eine Entwicklung mehr als das Pokémon selbst, heißt das Urteil „Erst entwickeln“ – mit Kosten
-  und Bedingungen der Entwicklung.
+- **Entwickeln:** Taugt eine Vorstufe selbst nichts (Stufe „Lohnt nicht“), eine Entwicklung aber schon, heißt das
+  Urteil „Erst entwickeln“ – mit Kosten und Bedingungen der Entwicklung (bei Crypto ohne Tausch-Bedingung, erlöst mit
+  den Erlöst-Bonbons). Taugt die Vorstufe selbst schon etwas, behält sie ihr Urteil, und die Seite nennt die stärkere
+  Entwicklung nur als Hinweis („Noch stärker als …“).
 
 **Werte und Kosten:** WP = ⌊(Angriff + IV) × √(Verteidigung + IV) × √(KP + IV) × CPM² ÷ 10⌋, CPM aus den Spieldaten
 (halbe Level als Wurzel-Mitte). Power-up-Kosten aus `POKEMON_UPGRADE_SETTINGS` (Endynalos mit eigener Tabelle):
