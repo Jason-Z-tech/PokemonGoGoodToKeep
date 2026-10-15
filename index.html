@@ -9,15 +9,16 @@
   <meta name="description" content="Lohnt sich das Power-up? Für jedes Pokémon in Pokémon GO – auch Mega, Crypto und Legendäre – die Bewertung für Raids und Arenen, Ranglisten je Typ, Werte auf jedem Level bis 51, Power-up-Kosten und IV-Check.">
   <meta name="theme-color" content="#0b0d18">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=2026-10-15-4">
-  <script src="data/pokemon-data.js?v=2026-10-15-4" defer></script>
-  <script src="js/calc.js?v=2026-10-15-4" defer></script>
-  <script src="js/shared.js?v=2026-10-15-4" defer></script>
-  <script src="js/search.js?v=2026-10-15-4" defer></script>
-  <script src="js/overview.js?v=2026-10-15-4" defer></script>
-  <script src="js/browse.js?v=2026-10-15-4" defer></script>
-  <script src="js/detail.js?v=2026-10-15-4" defer></script>
-  <script src="js/app.js?v=2026-10-15-4" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-10-15-5">
+  <script src="data/pokemon-data.js?v=2026-10-15-5" defer></script>
+  <script src="js/calc.js?v=2026-10-15-5" defer></script>
+  <script src="js/shared.js?v=2026-10-15-5" defer></script>
+  <script src="js/search.js?v=2026-10-15-5" defer></script>
+  <script src="js/overview.js?v=2026-10-15-5" defer></script>
+  <script src="js/browse.js?v=2026-10-15-5" defer></script>
+  <script src="js/compare.js?v=2026-10-15-5" defer></script>
+  <script src="js/detail.js?v=2026-10-15-5" defer></script>
+  <script src="js/app.js?v=2026-10-15-5" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Zum Inhalt springen</a>
@@ -44,7 +45,7 @@
     </nav>
     <p class="hero__eyebrow">Pokémon GO · Hochleveln oder nicht?</p>
     <h1 class="hero__title">Power<span>-</span>Kompass</h1>
-    <p class="hero__lead">Lohnt sich das Power-up? Für jedes Pokémon – auch Mega, Crypto und Legendäre – siehst du, wie gut es in Raids und Arenen ist, seine Werte auf jedem Level bis 51 und was das Hochleveln kostet. Gib deine IVs ein, und die Bewertung rechnet mit deinem Pokémon.</p>
+    <p class="hero__lead">Lohnt sich das Power-up? Für jedes Pokémon – auch Mega, Crypto und Legendäre – siehst du, wie gut es in Raids und Arenen ist, seine Werte auf jedem Level bis 51 und was das Hochleveln kostet. Gib deine IVs ein, und die Bewertung rechnet mit deinem Pokémon – oder vergleiche zwei Pokémon direkt miteinander.</p>
     <div class="toolbar">
       <form class="finder" id="finder" autocomplete="off" role="search">
         <div class="search">
@@ -75,6 +76,7 @@
         <a class="view-tabs__link" href="#" data-view="all" aria-current="page">Alle Pokémon</a>
         <a class="view-tabs__link" href="#typ" data-view="type">Nach Typ</a>
         <a class="view-tabs__link" href="#top=gesamt" data-view="top">Top-Rankings</a>
+        <a class="view-tabs__link" href="#vergleich" data-view="compare">Vergleich</a>
       </nav>
 
       <section class="start" id="panel-all" aria-labelledby="all-title">
@@ -97,6 +99,8 @@
       </section>
 
       <section class="browse" id="panel-browse" aria-labelledby="browse-title" hidden></section>
+
+      <section class="compare" id="panel-compare" aria-labelledby="compare-title" hidden></section>
     </div>
 
     <div id="view-detail" class="detail" hidden></div>
@@ -116,6 +120,10 @@
       <article>
         <h3>Mega &amp; Proto</h3>
         <p>Megas haben eigene Ranglisten (pro Person ist nur eine aktiv) und zählen für ihre normale Form mit – wer sie hochlevelt, levelt die Mega mit. Maßstab ist die beste Mega eines Typs: „Spitze“ ab 95 %, „Lohnt sich“ ab 85 %, „Nische“ ab 75 %. Gerechnet wird mit dem höchsten Mega-Level: Zusatz-Lade-Attacke („+“, ×1.0 bis ×1.3) und auf dem Super-Max-Level 2 Level mehr. Bonbon-, XL- und EP-Bonus hängen nur am Mega-Level.</p>
+      </article>
+      <article>
+        <h3>Vergleich</h3>
+        <p>Zwei Pokémon mit eigenen IVs, Level, Attacken, Glück, Erlöst, Kumpel und Mega-Level gegen denselben Raid-Boss: DPS, TDO und Wertung auf Level 40 und 50. Mehr als 2 % Unterschied in der Wertung entscheiden, sonst das günstigere Hochleveln. Stufe und Platz zeigen, wo es mit diesen IVs in der Rangliste stünde.</p>
       </article>
       <article>
         <h3>Kosten &amp; Level</h3>

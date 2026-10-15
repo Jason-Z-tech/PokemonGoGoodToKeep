@@ -17,13 +17,14 @@ const Search = (() => {
   const VARIANT_ORDER = (p) => (p.shadow ? 2 : p.variant === 'normal' ? 0 : 1);
 
   // Treffer, beste zuerst: Name beginnt mit der Eingabe, dann ein Wort darin, dann irgendwo; Nummer genau.
-  function matches(query) {
+  // all: auch Crypto-Pokémon, wenn der Schalter aus ist (Vergleich).
+  function matches(query, { all = false } = {}) {
     const q = Power.normalize(query);
     if (!q) return [];
     const number = /^\d+$/.test(q) ? Number(q) : null;
     const hits = [];
     for (const p of data.pokemon) {
-      if (!Power.visible(p)) continue;
+      if (!all && !Power.visible(p)) continue;
       const n = index.get(p.key);
       let score = null;
       if (number !== null) score = p.dex === number ? 0 : String(p.dex).startsWith(q) ? 3 : null;
@@ -77,7 +78,7 @@ const Search = (() => {
     ]));
     options.push(el('li', {
       id: 'search-option-all', role: 'option', class: 'suggest__option suggest__option--all', 'aria-selected': 'false', data: { href: '' },
-    }, [hits.length ? `Alle ${Power.formatNumber(hits.length)} Treffer in der Liste zeigen` : `Kein Pokémon passt zu „${query}“`]));
+    }, [hits.length === 1 ? '1 Treffer in der Liste zeigen' : hits.length ? `Alle ${Power.formatNumber(hits.length)} Treffer in der Liste zeigen` : `Kein Pokémon passt zu „${query}“`]));
     list.replaceChildren(...options);
     list.hidden = false;
     input.setAttribute('aria-expanded', 'true');

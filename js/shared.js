@@ -87,11 +87,17 @@ const Power = (() => {
     const names = [...new Set([p.name, p.nameEn, spellOut(p.name)].filter(Boolean).map(normalize))];
     return {
       name: names[0],
-      text: `${names.join(' ')} ${p.dex} ${String(p.dex).padStart(3, '0')}`,
+      dex: p.dex,
+      text: names.join(' '),
       compact: names.map((n) => n.replace(/ /g, '')).join(' '),
     };
   }
-  const matchesQuery = (index, q) => index.text.includes(q) || index.compact.includes(q.replace(/ /g, ''));
+  // Eine Nummer (auch "#025") passt zur Pokédex-Nummer selbst und zu Nummern, die so beginnen ("25" → 25, 250 …);
+  // mit führender Null nur genau ("025" → 25). Sonst: Name enthält die Eingabe (auch ohne Leerzeichen).
+  function matchesQuery(index, q) {
+    if (/^\d+$/.test(q)) return index.dex === Number(q) || String(index.dex).startsWith(q);
+    return index.text.includes(q) || index.compact.includes(q.replace(/ /g, ''));
+  }
 
   // ---------- Bewertung ----------
 

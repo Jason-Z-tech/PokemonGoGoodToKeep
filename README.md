@@ -13,7 +13,7 @@ Seite deshalb bewusst nicht.
   **„Crypto-Pokémon“**: An zählen Crypto-Pokémon überall mit; aus fehlen sie in allen Listen, und Plätze und
   Bewertungen sind ohne sie gerechnet (ein normales Mamutel steht dann z. B. bei Eis auf Platz 5 statt 8 und ist
   „Spitze“ statt „Lohnt sich“).
-- **Drei Ansichten** (Reiter über der Liste):
+- **Vier Ansichten** (Reiter über der Liste):
   - **Alle Pokémon:** jedes Pokémon mit Urteil – „Spitze“, „Lohnt sich“, „Nische“, „Lohnt nicht“ oder „Entwickeln“
     (Vorstufe: erst entwickeln, dann leveln) – und dem wichtigsten Grund („Raids: Platz 3 Feuer“). Filter nach
     Anzeige (Urteil oder Rangliste), Bewertung, Typ und Art (Normal, Legendär/Mysteriös/Ultrabestien, Mega & Proto,
@@ -22,6 +22,13 @@ Seite deshalb bewusst nicht.
     Raid-Angreifer, die 3 besten Megas und alle Pokémon dieses Typs (beste zuerst).
   - **Top-Rankings:** die besten Raid-Angreifer über alle Typen (jeweils in ihrem besten Typ), die Top 5 je Typ
     und die Top 3 Megas je Typ.
+  - **Vergleich:** zwei Pokémon nebeneinander, jedes mit eigenen IVs, „Level jetzt“, Sofort- und Lade-Attacke (oder
+    die besten), Glücks-Pokémon, Erlöst, Bester Kumpel und Mega-Level – z. B. ein Crypto-Mewtu mit 84 % gegen ein
+    normales Mewtu mit 98 %. Ergebnis für einen Angriffstyp (gemeinsamer Typ oder frei wählbar): wer sich mehr lohnt
+    (Wertung, DPS und TDO auf Level 40 und 50; unter 2 % Unterschied entscheidet das günstigere Hochleveln), Stufe
+    und Platz in der Rangliste mit diesen IVs, WP, Angriff, Verteidigung, KP und die Kosten bis Level 40 und 50.
+    Die Adresse enthält den ganzen Vergleich (zum Teilen); „Mit einem anderen Pokémon vergleichen“ auf der
+    Pokémon-Seite übernimmt die eigenen Eingaben und stellt die Crypto- bzw. normale Form daneben.
 - **Pokémon-Seite:** oben das Urteil mit Begründung und Links zu Crypto-, Mega- und Vorstufen/Entwicklungen.
   Darunter **„Dein Pokémon“**: IVs (standardmäßig 15/15/15 = 100 %, Vorlagen für Glücks-Minimum 12/12/12 und
   Raid-Minimum 10/10/10), „Level jetzt“ (oder WP eingeben – die Seite findet das Level, auch wenn die IVs danach
@@ -44,7 +51,10 @@ Seite deshalb bewusst nicht.
 Lokal: `index.html` doppelklicken. Die Seite braucht keinen Server und keine Installation.
 Direktlinks: `index.html#pokemon=mamoswine`, `index.html#pokemon=crypto-mamoswine`, `index.html#pokemon=starmie-mega`,
 Ansichten: `#typ` (Typ wählen), `#typ=fire` (Typ englisch), `#top=gesamt`, `#top=raid`, `#top=mega`,
-vollständige Ranglisten in „Alle Pokémon“: `#rangliste=raid-fire`, `#rangliste=raid-fire-mega`.
+vollständige Ranglisten in „Alle Pokémon“: `#rangliste=raid-fire`, `#rangliste=raid-fire-mega`,
+Vergleich: `#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:20` – je Pokémon
+`schlüssel:angriff-vert-kp:level[:merkmale[:sofort-attacke[:lade-attacke]]]`, Merkmale `g` Glücks-Pokémon, `e` Erlöst,
+`k` Bester Kumpel, `m1`–`m4` Mega-Level (z. B. `mewtwo-mega-y:15-15-15:40:m4`).
 
 ## Veröffentlichen (GitHub Pages)
 
@@ -63,7 +73,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html` und `datenschutz.html` den Zusatz
-`?v=2026-10-15-4` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
+`?v=2026-10-15-5` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
 Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und
 neue Skripte mischen.
 
@@ -88,7 +98,9 @@ des Typs, zurück mit Fokus auf dem Eintrag), „Top-Rankings“ (Sortierung, Ka
 Pokémon öffnen und zurück, IV-Eingabe, Vorlagen, halbe Level, Bester Kumpel, Level jetzt, WP-Eingabe (auch erst WP,
 dann IVs; Statuszeile für Screenreader), Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher),
 „Erlöst“ auf der Mega-Seite, die Marken Top-TM und Meteorit, Reiter per Tastatur, Zurück aus einer Rangliste (Liste
-mit Suche wie vorher) und die Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
+mit Suche wie vorher), der Vergleich (WP, Angriff im Kampf und Kosten unabhängig nachgerechnet, Gewinner,
+Markierungen, Adresse, Suchfeld per Tastatur, Tauschen, feste Attacke, Mega auf Super-Max, Beispiel-Knopf, Link von
+der Pokémon-Seite und zurück, ohne Crypto) und die Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
 Level 40 und 4724 auf Level 50, 270 000 Sternenstaub und 304 Bonbons bis Level 40, 296 Bonbons XL bis 50, Crypto 360,
 Erlöst 272). Auf dem Desktop wird jede Pokémon-Seite mit allen drei Reitern gezeichnet (auf Tablet, Handy und schmalem
 Handy jede siebte, fünfte bzw. dreizehnte), zusätzlich jede zehnte ohne Crypto – ohne Fehler, ohne seitlichen Überlauf
@@ -141,6 +153,9 @@ Das Urteil richtet sich nach **Raids und Arenen** (bester Angriffstyp, bei norma
   aus den Spieldaten: Bonbons +1/+1/+2/+3, XL-Chance –/10/25/30 %, EP –/+50/+100/+200 für gefangene Pokémon passender
   Typen, Ruhezeit 7/5/3/1 Tage, Super-Max zusätzlich 5000 Mega-Energie. Der Raid-Bonus (+10 %, eigener Typ +30 %) gilt
   für alle anderen im Raid, nicht für die Mega selbst.
+- **Vergleich:** dieselbe Rechnung wie die Ranglisten, aber mit den eingegebenen IVs, Leveln und Attacken beider
+  Pokémon gegen denselben Boss. Stufe und Platz „mit diesen IVs“ vergleichen die eigene Wertung auf Level 40 mit der
+  Rangliste des Typs (Maßstab wie dort: der Fünftbeste bzw. die beste Mega).
 - **Entwickeln:** Taugt eine Vorstufe selbst nichts (Stufe „Lohnt nicht“), eine Entwicklung aber schon, heißt das
   Urteil „Erst entwickeln“ – mit Kosten und Bedingungen der Entwicklung (bei Crypto ohne Tausch-Bedingung, erlöst mit
   den Erlöst-Bonbons). Taugt die Vorstufe selbst schon etwas, behält sie ihr Urteil, und die Seite nennt die stärkere
@@ -158,7 +173,7 @@ eingerechnet.
 ## Aufbau
 
 ```
-index.html                 Ansichten Alle Pokémon / Nach Typ / Top-Rankings und Pokémon-Seite (#pokemon=<schlüssel>)
+index.html                 Ansichten Alle Pokémon / Nach Typ / Top-Rankings / Vergleich und Pokémon-Seite (#pokemon=<schlüssel>)
 datenschutz.html           Datenschutzerklärung
 assets/favicon.svg         Seiten-Icon (eigenes Design: Power-up-Pfeil)
 css/style.css              Design
@@ -167,6 +182,7 @@ js/shared.js               gemeinsame Bausteine (DOM-Helfer, Bewertungen, Crypto
 js/search.js               Suche oben mit Vorschlägen
 js/overview.js             Ansicht "Alle Pokémon": Liste, Filter, vollständige Ranglisten
 js/browse.js               Ansichten "Nach Typ" und "Top-Rankings"
+js/compare.js              Ansicht "Vergleich": zwei Pokémon mit IVs nebeneinander
 js/detail.js               Pokémon-Seite: Urteil, Dein Pokémon, Reiter Bewertung / Werte & Kosten / Attacken
 js/app.js                  Start und Navigation (Zurück-Link, Browser-Verlauf, Fokus)
 data/pokemon-data.js       erzeugte Daten (nicht von Hand bearbeiten)

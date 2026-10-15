@@ -135,13 +135,15 @@ const PowerCalc = (() => {
 
   // Bestes Attacken-Paar gegen einen Boss, der schwach gegen "type" ist. Die Lade-Attacke muss diesen Typ
   // haben (sonst wäre es kein Angreifer dieses Typs), die Sofort-Attacke darf beliebig sein.
-  function bestPve(data, pokemon, stats, type, { elite = true, megaLevel = null } = {}) {
+  // fast/charged: feste Attacken (die, die das eigene Pokémon wirklich kann) statt der besten.
+  function bestPve(data, pokemon, stats, type, { elite = true, megaLevel = null, fast: fastId = null, charged: chargedId = null } = {}) {
     const target = pveTarget(data, type);
     const { fast, charged } = pveMoves(data, pokemon, { elite, megaLevel });
     let best = null;
     for (const c of charged) {
-      if (c.type !== type) continue;
+      if (c.type !== type || (chargedId && c.id !== chargedId)) continue;
       for (const f of fast) {
+        if (fastId && f.id !== fastId) continue;
         const perf = pvePerformance(data, pokemon, stats, f, c, target);
         if (!best || perf.score > best.score) best = { ...perf, fast: f.id, charged: c.id };
       }

@@ -1,7 +1,8 @@
 'use strict';
 
-// Start und Navigation. Drei Ansichten der Liste – "Alle Pokémon" (Startseite, #rangliste=raid-<typ> als Rangliste),
-// "Nach Typ" (#typ, #typ=<typ>) und "Top-Rankings" (#top=<liste>) – und die Pokémon-Seite (#pokemon=<schlüssel>).
+// Start und Navigation. Vier Ansichten der Liste – "Alle Pokémon" (Startseite, #rangliste=raid-<typ> als Rangliste),
+// "Nach Typ" (#typ, #typ=<typ>), "Top-Rankings" (#top=<liste>) und "Vergleich" (#vergleich=<platz 1>,<platz 2>) –
+// und die Pokémon-Seite (#pokemon=<schlüssel>).
 // Zurück führt dorthin, wo man herkam – an die gemerkte Stelle und auf den Eintrag, von dem man kam.
 
 const PowerApp = (() => {
@@ -14,6 +15,7 @@ const PowerApp = (() => {
     if (r.view === 'detail') return `pokemon:${r.key}`;
     if (r.sub === 'type') return `typ:${r.type ?? ''}`;
     if (r.sub === 'top') return `top:${r.top}`;
+    if (r.sub === 'compare') return 'vergleich'; // die Plätze stehen in der Adresse, ändern aber nicht die Ansicht
     return `alle:${r.ranking ?? ''}`;
   };
 
@@ -38,6 +40,8 @@ const PowerApp = (() => {
     }
     const top = /^#top(?:=([a-z]+))?$/.exec(hash);
     if (top) return { view: 'list', sub: 'top', top: Browse.hasTop(top[1]) ? top[1] : 'gesamt' };
+    const compare = /^#vergleich(?:=([A-Za-z0-9_:,.-]*))?$/.exec(hash);
+    if (compare) return { view: 'list', sub: 'compare', params: compare[1] ?? null };
     return { view: 'list', sub: 'all' };
   }
 
@@ -45,6 +49,7 @@ const PowerApp = (() => {
     if (r.view === 'detail') return `#pokemon=${r.key}`;
     if (r.sub === 'type') return r.type ? `#typ=${r.type.toLowerCase()}` : '#typ';
     if (r.sub === 'top') return `#top=${r.top}`;
+    if (r.sub === 'compare') return Compare.hash();
     return r.ranking ? `#rangliste=${r.ranking}` : '';
   }
 
@@ -55,6 +60,7 @@ const PowerApp = (() => {
     if (r.view === 'detail') return '← Alle Pokémon';
     if (r.sub === 'type') return r.type ? `← ${Power.data.types[r.type]}-Pokémon` : '← Nach Typ';
     if (r.sub === 'top') return '← Top-Rankings';
+    if (r.sub === 'compare') return '← Zum Vergleich';
     return r.ranking ? '← Zur Rangliste' : '← Alle Pokémon';
   }
 
@@ -80,6 +86,7 @@ const PowerApp = (() => {
     if (previous) scrollMemory.set(routeKey(previous), window.scrollY);
     views.list.hidden = r.view !== 'list';
     views.detail.hidden = r.view !== 'detail';
+    if (r.sub !== 'compare') Compare.hide();
     if (previous?.view === 'detail' && r.view !== 'detail') views.detail.replaceChildren();
     current = r;
 
@@ -93,9 +100,14 @@ const PowerApp = (() => {
     }
 
     views.all.hidden = r.sub !== 'all';
-    views.browse.hidden = r.sub === 'all';
-    const backFromDetail = restore && previous?.view === 'detail';
-    if (r.sub === 'type') {
+    views.browse.hidden = r.sub !== 'type' && r.sub !== 'top';
+    views.compare.hidden = r.sub !== 'compare';
+    // Zurück aus einem Pokémon (nur bei Einträgen der Seite selbst; eine eingetippte Adresse zählt nicht dazu).
+    const backFromDetail = restore && previous?.view === 'detail' && Boolean(history.state?.inApp);
+    if (r.sub === 'compare') {
+      Compare.show(r.params, views.compare);
+      document.title = 'Vergleich – Power-Kompass';
+    } else if (r.sub === 'type') {
       Browse.showType(r.type, views.browse);
       document.title = r.type ? `${Power.data.types[r.type]}-Pokémon – Power-Kompass` : `Nach Typ – Power-Kompass`;
     } else if (r.sub === 'top') {
@@ -108,6 +120,8 @@ const PowerApp = (() => {
       const saved = restore ? history.state?.overview : null;
       if (saved) Overview.restore(saved);
       else if (r.ranking && !backFromDetail) Overview.showRanking(parseRanking(r.ranking));
+      // Neuer Eintrag ohne Änderung an der Liste: Stand gleich merken, damit Vor/Zurück ihn wiederfinden.
+      if (!history.state?.overview) saveList();
     }
     setTabs(r.sub);
 
@@ -119,9 +133,11 @@ const PowerApp = (() => {
       (origin ?? document.getElementById('main')).focus({ preventScroll: true });
     } else if (previous) {
       scrollToMain();
-      document.getElementById(r.sub === 'all' ? 'all-title' : 'browse-title')?.focus({ preventScroll: true });
+      document.getElementById(titleOf(r))?.focus({ preventScroll: true });
     }
   }
+
+  const titleOf = (r) => (r.view === 'detail' ? 'detail-title' : { all: 'all-title', compare: 'compare-title' }[r.sub] ?? 'browse-title');
 
   // Stand der Liste "Alle Pokémon" im aktuellen Verlaufseintrag merken – nach jeder Änderung, damit Zurück und Vor
   // jede Liste so zeigen, wie man sie verlassen hat.
@@ -134,7 +150,9 @@ const PowerApp = (() => {
   function navigate(hash, { scroll = false } = {}) {
     const next = parse(hash);
     if (current && routeKey(current) === routeKey(next)) {
-      if (scroll) { scrollToMain(); document.getElementById(next.view === 'detail' ? 'detail-title' : next.sub === 'all' ? 'all-title' : 'browse-title')?.focus({ preventScroll: true }); }
+      // Vergleich mit neuen Plätzen (z. B. Link von außen): übernehmen, ohne neuen Verlaufseintrag.
+      if (next.sub === 'compare' && next.params !== null) Compare.show(next.params, views.compare);
+      if (scroll) { scrollToMain(); document.getElementById(titleOf(next))?.focus({ preventScroll: true }); }
       return;
     }
     saveList();
@@ -147,6 +165,7 @@ const PowerApp = (() => {
       list: document.getElementById('view-list'),
       all: document.getElementById('panel-all'),
       browse: document.getElementById('panel-browse'),
+      compare: document.getElementById('panel-compare'),
       detail: document.getElementById('view-detail'),
     };
     if (!Power.ready) {
@@ -199,7 +218,7 @@ const PowerApp = (() => {
         return;
       }
       const hash = link.getAttribute('href');
-      if (hash !== '#' && !/^#(pokemon|rangliste|typ|top)(=|$)/.test(hash)) return;
+      if (hash !== '#' && !/^#(pokemon|rangliste|typ|top|vergleich)(=|$)/.test(hash)) return;
       e.preventDefault();
       navigate(hash === '#' ? '' : hash);
     });

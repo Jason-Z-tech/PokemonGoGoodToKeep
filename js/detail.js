@@ -246,6 +246,10 @@ const Detail = (() => {
         presetButton('raid', 'Raid-Minimum (10/10/10)', { atk: 10, def: 10, sta: 10 }, 'Pokémon aus Raids, Eiern und Forschung haben mindestens 10/10/10'),
       ]),
       el('div', { class: 'mine__row' }, [level, cpInput()]),
+      el('a', {
+        class: 'compare-link', id: 'compare-link',
+        href: Compare.linkFor(p, { iv: state.iv, level: state.level, lucky: state.lucky && canBeLucky(), purified: state.purified && canBePurified(), buddy: state.buddy, megaLevel: state.megaLevel }),
+      }, ['⇄ Mit einem anderen Pokémon vergleichen']),
       cpFeedback(),
       el('div', { class: 'mine__toggles' }, [
         toggle('lucky', 'Glücks-Pokémon', canBeLucky() ? 'halber Sternenstaub' : `nicht möglich (${ownerOf().shadow ? 'Crypto ist ' : ''}nicht tauschbar)`, { disabled: !canBeLucky() }),
@@ -423,7 +427,7 @@ const Detail = (() => {
     if (weak.length) parts.push(`Der Angriff ist zu niedrig – ${joinList(weak.map((r) => r.weakPhrase))} lohnt sich ein besseres Exemplar.`);
     if (!strong.length && !weak.length) parts.push('Mit diesen IVs als Angreifer zu schwach.');
     const better = Power.betterOf(p);
-    if (better) parts.push(`Als ${Power.pokemon(better.key).name} wäre es noch stärker – die IVs bleiben beim Entwickeln gleich.`);
+    if (better) parts.push(`Als ${Power.pokemon(better.key).name} wäre es ${best > 0 ? 'noch ' : ''}stärker – die IVs bleiben beim Entwickeln gleich.`);
     return verdict(Power.gradeBadge(best), parts.join(' '), best);
   }
 
@@ -608,7 +612,7 @@ const Detail = (() => {
     });
     const notes = [];
     if (boost) notes.push(`Werte mit +${boost} Level (${state.buddy && megaBoost() <= data.rules.buddyBoostLevels ? 'Bester Kumpel' : 'Super-Max-Level'}); die Kosten gelten für das echte Level.`);
-    if (isMega()) notes.push(`Werte der Mega-Form; Power-ups gelten für ${owner.name}.`);
+    if (isMega()) notes.push(`Werte der ${p.variant === 'primal' ? 'Proto-Form' : 'Mega-Form'}; Power-ups gelten für ${owner.name}.`);
     if (p.shadow) notes.push(`Im Kampf zusätzlich ×${formatNumber(data.rules.shadowAttack, 1)} Angriff und ×${formatNumber(data.rules.shadowDefense, 2)} Verteidigung (Crypto). Power-ups kosten 20 % mehr.`);
     if (opts.purified) notes.push('Erlöst: Power-ups 10 % günstiger.');
     if (opts.lucky) notes.push('Glücks-Pokémon: halber Sternenstaub.');

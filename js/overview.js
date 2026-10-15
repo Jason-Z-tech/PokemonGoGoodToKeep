@@ -243,7 +243,7 @@ const Overview = (() => {
     const shown = list.slice(0, state.shown);
     const ranked = state.use !== 'all';
     document.getElementById('poke-grid').replaceChildren(...shown.map(({ p, rating }) => el('li', {}, [
-      ranked ? tile(p, { rank: rating.rank, grade: rating.grade, reason: useText(p, rating), rankTitle: `Platz ${USES.find((u) => u.id === state.use).inLabel}` }) : tile(p),
+      ranked ? tile(p, { rank: rating.rank, grade: rating.grade, reason: useText(p, rating), rankTitle: `Platz ${USES.find((u) => u.id === state.use)?.inLabel ?? ''}` }) : tile(p),
     ])));
     const rest = list.length - shown.length;
     const more = document.getElementById('list-more');
@@ -279,8 +279,16 @@ const Overview = (() => {
 
   // Zustand der Liste für den Verlauf: Zurück zeigt die Liste so, wie sie war (Filter, Suche, Anzahl).
   const snapshot = () => ({ query: state.query, grade: state.grade, group: state.group, use: state.use, type: state.type, sort: state.sort, shown: state.shown });
+  // Gemerkte Stände können aus einer älteren Version stammen (z. B. Anzeige "Max-Kämpfe"): Unbekanntes fällt weg.
   function restore(saved) {
     Object.assign(state, DEFAULTS, { shown: STEP }, saved);
+    if (!USES.some((u) => u.id === state.use)) state.use = DEFAULTS.use;
+    if (!GRADE_FILTERS.some((f) => f.id === state.grade)) state.grade = DEFAULTS.grade;
+    if (!GROUPS.some((g) => g.id === state.group)) state.group = DEFAULTS.group;
+    if (!['dex', 'best', 'name'].includes(state.sort)) state.sort = DEFAULTS.sort;
+    if (state.type && !Power.TYPE_ORDER.includes(state.type)) state.type = DEFAULTS.type;
+    if (!(state.shown >= STEP)) state.shown = STEP;
+    if (typeof state.query !== 'string') state.query = '';
     Search.set(state.query);
     render();
   }

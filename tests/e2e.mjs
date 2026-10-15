@@ -129,6 +129,7 @@ const listState = (page) => page.eval(`(() => ({
 }))()`);
 
 const GRADE_IDS = ['no', 'niche', 'good', 'top'];
+const Power_TYPES = Object.keys(DATA.raidTables);
 
 async function testStart(page, vp) {
   const tag = `[${vp.label}]`;
@@ -165,6 +166,15 @@ async function testStart(page, vp) {
   await page.click('#search-clear');
   s = await listState(page);
   check(s.tiles.length === 48 && (await page.eval('document.getElementById("search").value')) === '', `${tag} Suche leeren`);
+  // Nummern: Vorschläge und Liste zählen gleich ("25" → 25, 250 …; "025" → nur 25, Einzahl).
+  await page.type('#search', '25');
+  s = await listState(page);
+  const all25 = await page.eval(`document.getElementById('search-option-all').textContent`);
+  check(num(all25.split(' ')[1]) === num(s.count.split(' ')[0]), `${tag} Suche "25": ${all25} / ${s.count}`);
+  await page.type('#search', '025');
+  check((await page.eval(`document.getElementById('search-option-all').textContent`)) === '1 Treffer in der Liste zeigen', `${tag} Suche "025": Einzahl`);
+  await page.key('Escape');
+  await page.click('#search-clear');
 
   // Bewertungs-Filter: jede Kachel trägt die gewählte Stufe, Anzahl wie in den Daten.
   for (const [i, id] of GRADE_IDS.entries()) {
@@ -248,6 +258,20 @@ async function testBrowse(page, vp) {
   check(fire.mega.join() === DATA.raidTables.FIRE.megas.slice(0, 3).join(), `${tag} Feuer: Top-Megas weichen ab`);
   check(fire.all.length === 48 && fire.all.every((k) => byKey.get(k).types.includes('FIRE')), `${tag} Feuer: "Alle Feuer-Pokémon" enthält andere Typen`);
   check(fire.overflow <= 0, `${tag} Nach Typ läuft seitlich über`);
+  // Lange Namen laufen nicht in die Bewertung (alle Typen).
+  const overlaps = [];
+  for (const type of Power_TYPES) {
+    await page.eval(`location.hash = '#typ=${type.toLowerCase()}'`);
+    await sleep(60);
+    overlaps.push(...await page.eval(`[...document.querySelectorAll('#type-raid-list .rank-row')].filter((row) => {
+      const a = row.querySelector('.rank-row__name > span').getBoundingClientRect();
+      const b = row.querySelector(':scope > .verdict').getBoundingClientRect();
+      return a.right > b.left + 1 && a.bottom > b.top + 1 && b.bottom > a.top + 1;
+    }).map((row) => row.dataset.pokemon)`));
+  }
+  check(!overlaps.length, `${tag} Ranglisten-Zeilen: Name überdeckt die Bewertung (${overlaps.slice(0, 5).join(', ')})`);
+  await page.eval(`location.hash = '#typ=fire'`);
+  await sleep(60);
   // Ohne Crypto: Top 10 ohne Crypto-Pokémon.
   await page.click('#crypto-toggle');
   const plain = await page.eval(`[...document.querySelectorAll('#type-raid-list a')].map((a) => a.dataset.pokemon)`);
@@ -454,6 +478,34 @@ async function testDetail(page, vp) {
 async function testHistory(page, vp) {
   const tag = `[${vp.label}]`;
   const search = () => page.eval(`document.getElementById('search').value`);
+  // Alter gemerkter Stand (Version mit "Max-Kämpfe"): fällt auf "Urteil" zurück, ohne Fehler.
+  await page.goto(url('index.html'));
+  await page.eval(`history.replaceState({ overview: { query: '', grade: 'all', group: 'all', use: 'max', type: '', sort: 'best', shown: 48 } }, '')`);
+  await page.eval(`location.hash = '#typ=fire'`);
+  await sleep(100);
+  await page.eval('history.back()');
+  await sleep(150);
+  check((await page.eval(`document.querySelector('#filter-use button[aria-pressed="true"]')?.dataset.value`)) === 'all'
+    && (await page.eval(`document.querySelector('.view-tabs__link[aria-current="page"]')?.dataset.view`)) === 'all', `${tag} Alter Stand "max": Liste "Urteil" erwartet`);
+  // Neue Liste über "Alle Treffer", zurück und wieder vor: die Suche bleibt.
+  await page.click('.view-tabs__link[data-view="type"]');
+  await page.type('#search', 'pika');
+  await page.key('Enter');
+  await sleep(150);
+  check((await search()) === 'pika' && (await page.eval('location.hash')) === '', `${tag} Alle Treffer: Liste mit Suche "pika"`);
+  for (const step of ['back', 'back', 'forward', 'forward']) {
+    await page.eval(`history.${step}()`);
+    await sleep(150);
+  }
+  const pika = await listState(page);
+  check((await search()) === 'pika' && pika.tiles.length && pika.tiles.every((t) => /Pikachu/i.test(byKey.get(t.key).name + byKey.get(t.key).nameEn)), `${tag} Vor zur Trefferliste: Suche "${await search()}"`);
+  // Ranglisten-Adresse auf einer Pokémon-Seite eingetippt: zeigt die Rangliste.
+  await page.goto(url('index.html', '#pokemon=charizard'));
+  await page.eval(`location.hash = '#rangliste=raid-water'`);
+  await sleep(150);
+  const water = await listState(page);
+  check(water.tiles[0]?.key === DATA.raidTables.WATER.normal[0] && water.tiles[0]?.rank === 1, `${tag} Eingetippte Rangliste aus der Pokémon-Seite: ${water.tiles[0]?.key}`);
+
   await page.goto(url('index.html'));
   await page.type('#search', 'glurak');
   await page.key('Escape');
@@ -493,6 +545,129 @@ async function testHistory(page, vp) {
   await page.eval('history.back()');
   await sleep(150);
   check((await search()) === 'pikachu', `${tag} Zurück nach neuer Suche: "${await search()}" statt "pikachu"`);
+}
+
+// ---------- Vergleich ----------
+
+const compareState = (page) => page.eval(`({
+  hash: location.hash,
+  title: document.getElementById('compare-verdict-title')?.textContent ?? null,
+  lead: document.querySelector('.compare-verdict__lead')?.textContent ?? null,
+  names: [0, 1].map((i) => document.getElementById('c' + i + '-pick')?.value ?? null),
+  type: document.getElementById('compare-type')?.value ?? null,
+  cells: Object.fromEntries([...document.querySelectorAll('.compare-table tbody tr')].map((tr) => [
+    tr.querySelector('th').textContent,
+    [...tr.querySelectorAll('td')].map((td) => ({ text: td.textContent.replace('✓ ', '').replace('besser: ', '').trim(), better: td.classList.contains('is-better') })),
+  ])),
+  overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+})`);
+// "270’000 Sternenstaub · 312 Bonbons · 360 Bonbons XL" → { stardust, candy, xl }
+function costCell(text) {
+  const out = { stardust: 0, candy: 0, xl: 0 };
+  for (const part of text.split(' · ')) {
+    const n = num(part.split(' ')[0]);
+    if (part.endsWith('Sternenstaub')) out.stardust = n;
+    else if (part.endsWith('XL')) out.xl = n;
+    else out.candy = n;
+  }
+  return out;
+}
+const sameCost = (a, b) => a.stardust === b.stardust && a.candy === b.candy && a.xl === b.xl;
+
+async function testCompare(page, vp) {
+  const tag = `[${vp.label}]`;
+  // Beispiel: Crypto-Mewtu 13/12/13 gegen Mewtu 15/15/14, beide auf Level 20.
+  await page.goto(url('index.html', '#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:20'));
+  let s = await compareState(page);
+  const shadow = byKey.get('crypto-mewtwo');
+  const mewtwo = byKey.get('mewtwo');
+  const ivA = { atk: 13, def: 12, sta: 13 };
+  const ivB = { atk: 15, def: 15, sta: 14 };
+  check(s.names.join() === 'Crypto-Mewtu,Mewtu' && s.type === 'PSYCHIC', `${tag} Vergleich aus der Adresse: ${s.names.join()} / ${s.type}`);
+  check(s.title === 'Lohnt sich mehr: Crypto-Mewtu (84 %)', `${tag} Vergleich: Crypto-Mewtu 84 % sollte vorne liegen (${s.title})`);
+  check(s.overflow <= 0, `${tag} Vergleich läuft seitlich über (${s.overflow}px)`);
+  // WP, Angriff und Kosten unabhängig nachgerechnet.
+  check(num(s.cells['WP auf Level 40'][0].text) === cpOf(shadow, 40, ivA) && num(s.cells['WP auf Level 50'][1].text) === cpOf(mewtwo, 50, ivB)
+    && num(s.cells['WP jetzt'][0].text.split(' ')[0]) === cpOf(shadow, 20, ivA), `${tag} Vergleich: WP falsch`);
+  const atkA = (shadow.base.atk + 13) * cpm(40) * DATA.rules.shadowAttack;
+  const atkB = (mewtwo.base.atk + 15) * cpm(40);
+  check(Math.abs(num(s.cells['Angriff im Kampf (Level 40)'][0].text) - atkA) < 0.051 && Math.abs(num(s.cells['Angriff im Kampf (Level 40)'][1].text) - atkB) < 0.051
+    && s.cells['Angriff im Kampf (Level 40)'][0].better, `${tag} Vergleich: Angriff im Kampf (Crypto ×1.2)`);
+  check(sameCost(costCell(s.cells['Kosten bis Level 40'][0].text), cost(shadow, 20, 40)) && sameCost(costCell(s.cells['Kosten bis Level 50'][1].text), cost(mewtwo, 20, 50))
+    && s.cells['Kosten bis Level 40'][1].better, `${tag} Vergleich: Kosten falsch (${s.cells['Kosten bis Level 40'].map((c) => c.text).join(' | ')})`);
+  // Markierungen passen zu den Zahlen.
+  for (const rowName of ['DPS (Level 40)', 'TDO (Level 50)', 'WP auf Level 40']) {
+    const [x, y] = s.cells[rowName].map((c) => num(c.text));
+    const marked = s.cells[rowName].findIndex((c) => c.better);
+    check(marked === (x > y ? 0 : 1), `${tag} Vergleich: "besser" bei ${rowName} falsch`);
+  }
+
+  // IVs ändern: die Adresse zieht mit.
+  await selectValue(page, '#c1-iv-atk', 10);
+  s = await compareState(page);
+  check(s.hash === '#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:10-15-14:20' && num(s.cells['WP auf Level 40'][1].text) === cpOf(mewtwo, 40, { ...ivB, atk: 10 }),
+    `${tag} Vergleich: IVs ändern → ${s.hash}`);
+
+  // Anderes Pokémon über das Suchfeld (Tastatur): gemeinsamer Angriffstyp Eis.
+  await page.type('#c1-pick', 'mamu');
+  await page.key('ArrowDown');
+  await page.key('Enter');
+  await sleep(120);
+  s = await compareState(page);
+  check(s.names[1] === 'Mamutel' && s.hash.endsWith(',mamoswine:10-15-14:20') && s.type === 'ICE', `${tag} Vergleich: Mamutel wählen → ${s.names[1]}, ${s.hash}, ${s.type}`);
+  check((await page.eval(`document.activeElement?.id`)) === 'c1-pick', `${tag} Vergleich: Fokus bleibt im Suchfeld`);
+  // Typ, den nur eines kann.
+  await selectValue(page, '#compare-type', 'PSYCHIC');
+  s = await compareState(page);
+  check(s.type === 'PSYCHIC' && /nur Crypto-Mewtu/.test(s.lead ?? '') && s.title === 'Lohnt sich mehr: Crypto-Mewtu (84 %)', `${tag} Vergleich: Psycho nur Crypto-Mewtu (${s.lead})`);
+  // Tauschen.
+  await page.click('#compare-swap');
+  s = await compareState(page);
+  check(s.names.join() === 'Mamutel,Crypto-Mewtu' && s.hash === '#vergleich=mamoswine:10-15-14:20,crypto-mewtwo:13-12-13:20', `${tag} Vergleich: Tauschen → ${s.hash}`);
+  // Feste Lade-Attacke: steht in der Adresse, nur noch ihr Typ.
+  await selectValue(page, '#c1-charged', 'ICE_BEAM');
+  s = await compareState(page);
+  check(s.hash.endsWith(',crypto-mewtwo:13-12-13:20:::ICE_BEAM') && s.type === 'ICE' && /Eisstrahl/.test(s.cells.Attacken[1].text), `${tag} Vergleich: feste Lade-Attacke → ${s.hash}`);
+
+  // Mega auf Super-Max-Level: WP 2 Level höher, Kosten ab Level 40 bis 40 schon erreicht.
+  await page.goto(url('index.html', '#vergleich=mewtwo-mega-y:15-15-15:40:m4,mewtwo:15-15-15:40'));
+  s = await compareState(page);
+  const full = { atk: 15, def: 15, sta: 15 };
+  check(num(s.cells['WP auf Level 40'][0].text.split(' ')[0]) === cpOf(byKey.get('mewtwo-mega-y'), 42, full) && /\(wie Level 42\)/.test(s.cells['WP auf Level 40'][0].text)
+    && s.cells['Kosten bis Level 40'][0].text === 'schon erreicht'
+    && sameCost(costCell(s.cells['Kosten bis Level 50'][0].text), cost(mewtwo, 40, 50)), `${tag} Vergleich: Mega-Mewtu Y Super-Max`);
+  check(await page.eval(`document.querySelector('input[name="c0-mega-level"][value="4"]')?.checked`), `${tag} Vergleich: Mega-Level 4 gewählt`);
+
+  // Leer: Beispiel per Knopf.
+  await page.goto(url('index.html', '#vergleich'));
+  check(await page.eval(`document.querySelector('.view-tabs__link[data-view="compare"]').getAttribute('aria-current')`) === 'page', `${tag} Reiter Vergleich`);
+  await page.click('#compare-example');
+  s = await compareState(page);
+  check(s.names.join() === 'Crypto-Mewtu,Mewtu' && s.hash === '#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:20', `${tag} Vergleich: Beispiel-Knopf → ${s.hash}`);
+
+  // Von der Pokémon-Seite: mit den eigenen IVs, daneben die normale Form; zu einem Pokémon und zurück.
+  await page.goto(url('index.html', '#pokemon=crypto-mewtwo'));
+  await selectValue(page, '#iv-atk', 12);
+  await page.click('#compare-link');
+  await sleep(120);
+  s = await compareState(page);
+  check(s.hash === '#vergleich=crypto-mewtwo:12-15-15:20,mewtwo:15-15-15:20' && s.names.join() === 'Crypto-Mewtu,Mewtu', `${tag} Vergleich von der Pokémon-Seite: ${s.hash}`);
+  await selectValue(page, '#c1-level', 30);
+  await page.click('a.compare-slot__head[data-pokemon="mewtwo"]');
+  await sleep(120);
+  check((await page.eval(`document.getElementById('detail-title')?.textContent`)) === 'Mewtu' && (await page.eval(`document.getElementById('back').textContent`)) === '← Zum Vergleich', `${tag} Vergleich → Pokémon-Seite`);
+  await page.click('#back');
+  await sleep(150);
+  s = await compareState(page);
+  check(s.hash === '#vergleich=crypto-mewtwo:12-15-15:20,mewtwo:15-15-15:30' && s.names.join() === 'Crypto-Mewtu,Mewtu', `${tag} Zurück zum Vergleich: ${s.hash}`);
+  check((await page.eval('document.activeElement?.dataset?.pokemon ?? null')) === 'mewtwo', `${tag} Zurück zum Vergleich: Fokus auf Mewtu`);
+  // Crypto aus: Platz des normalen Mewtu ohne Crypto, Crypto-Mewtu behält seinen Platz mit Crypto.
+  await page.click('#crypto-toggle');
+  s = await compareState(page);
+  const stand = s.cells['Stufe mit diesen IVs (Level 40)'].map((c) => c.text);
+  check(!/ohne Crypto/.test(stand[0]) && /ohne Crypto/.test(stand[1]), `${tag} Vergleich ohne Crypto: ${stand.join(' | ')}`);
+  await page.click('#crypto-toggle');
+  check(s.overflow <= 0, `${tag} Vergleich läuft seitlich über`);
 }
 
 // Jede Pokémon-Seite (bzw. jede n-te) mit allen drei Reitern: keine Fehler, kein Überlauf.
@@ -544,7 +719,7 @@ async function testAllPages(page, vp) {
 async function testLegal(page, vp) {
   await page.goto(url('datenschutz.html'));
   const info = await page.eval(`({ h1: document.querySelector('h1').textContent, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth })`);
-  check(info.h1 === 'Datenschutz' && info.overflow <= 0, `[${vp.label}] Datenschutz-Seite`);
+  check(info.h1 === 'Datenschutz' && info.overflow <= 0, `[${vp.label}] Datenschutz-Seite: ${JSON.stringify(info)}`);
 }
 
 if (BASE) console.log(`Teste veröffentlichte Seite: ${BASE}`);
@@ -556,6 +731,7 @@ for (const vp of VIEWPORTS) {
     await testBrowse(page, vp);
     await testDetail(page, vp);
     await testHistory(page, vp);
+    await testCompare(page, vp);
     await testAllPages(page, vp);
     await testLegal(page, vp);
   } catch (err) {
