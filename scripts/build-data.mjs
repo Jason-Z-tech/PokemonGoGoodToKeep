@@ -1,6 +1,6 @@
 // Baut data/pokemon-data.js aus den Spieldaten (Game Master), den offiziellen deutschen Spieltexten,
-// den Ranglisten und Release-Angaben von PvPoke, den Dynamax-Daten des Dyna-Kompass und den Artworks
-// von PokeAPI. Nur Node-Bordmittel (ab Node 22) und Chrome/Edge für die Bilder.
+// den Release-Angaben von PvPoke, den Dynamax-Daten des Dyna-Kompass und den Artworks von PokeAPI.
+// Nur Node-Bordmittel (ab Node 22) und Chrome/Edge für die Bilder.
 // Aufruf: node scripts/build-data.mjs [--refresh] [--no-images] [--report]
 //   --refresh    alle Quellen neu herunterladen (sonst Zwischenspeicher in scripts/.cache/)
 //   --no-images  Plan B: ohne offizielle Artworks bauen und assets/img/ entfernen
@@ -29,7 +29,6 @@ const SOURCES = {
   gameMaster: `${RAW}/PokeMiners/game_masters/master/latest/latest.json`,
   gameMasterTime: `${RAW}/PokeMiners/game_masters/master/latest/timestamp.txt`,
   pvpoke: `${PVPOKE}/gamemaster.json`,
-  ranking: (cap) => `${PVPOKE}/rankings/all/overall/rankings-${cap}.json`,
   textsDe: `${RAW}/sora10pls/holoholo-text/main/Release/German/de-de_raw.json`,
   textsEn: `${RAW}/sora10pls/holoholo-text/main/Release/English/en-us_raw.json`,
   dyna: `${RAW}/Jason-Z-tech/dyna-kompass/main/data/pokemon-data.js`,
@@ -41,24 +40,16 @@ const PowerCalc = createRequire(import.meta.url)(path.join(ROOT, 'js', 'calc.js'
 
 // ---------- Regeln ----------
 
-// Ligen der GO-Kampfliga: WP-Grenze (Meisterliga ohne).
-const LEAGUES = [
-  { id: 'great', cap: 1500, text: 'combat_great_league' },
-  { id: 'ultra', cap: 2500, text: 'combat_ultra_league' },
-  { id: 'master', cap: null, text: 'combat_master_league' },
-];
-
 // Gegner für die Raid-Ranglisten: typischer 5-Sterne-Boss (Verteidigung 200, Boss-Multiplikator wie in Raids),
 // schwach gegen den Angriffstyp. Eingehender Schaden nach GamePress: y = 900 / Verteidigung.
 const PVE = { level: 40, targetDefense: 200, targetCpm: 0.79030001, incoming: 900 };
 
 // Bewertungs-Stufen: 3 = Spitze, 2 = Gut, 1 = Nische, 0 = lohnt sich nicht.
-// Raids: Wertung im Vergleich zum 5.-besten Angreifer des Typs ohne Mega (Crypto zählt mit).
+// Raids: Wertung im Vergleich zum 5.-besten Angreifer des Typs ohne Mega – einmal mit Crypto-Pokémon, einmal ohne
+// (für den Schalter "Crypto-Pokémon" auf der Seite).
 const RAID_GRADES = [1.0, 0.9, 0.8];
 // Mega-Entwicklungen: im Vergleich zur besten Mega des Typs.
 const MEGA_GRADES = [0.95, 0.85, 0.75];
-// Ligen: Platz in der Gesamt-Rangliste von PvPoke.
-const PVP_GRADES = [25, 75, 200];
 // Max-Kämpfe: Max-Schaden im Vergleich zum besten Dynamax-Pokémon des Typs.
 const MAX_GRADES = [0.92, 0.82, 0.72];
 
@@ -112,15 +103,12 @@ const RELEASE_FIXES = new Set(['DITTO', 'SHEDINJA', 'SPEWPA', 'COSMOG', 'COSMOEM
 
 // Besonderheiten, die nicht in den Spieldaten stehen: kurze Hinweise auf der Detailseite (Spiel-ID der Art oder Form).
 const NOTES = {
-  AEGISLASH: 'Im Trainerkampf wechselt Durengard zwischen Schild- und Klingenform: Mit einer Lade-Attacke greift es in der Klingenform an und kehrt danach in die Schildform zurück.',
-  MORPEKO: 'Morpeko wechselt im Trainerkampf nach jeder Aura-Rad-Attacke zwischen Pappsatt- und Kohldampfmuster – damit wechselt auch der Typ der Attacke (Elektro ↔ Unlicht).',
   LUGIA: 'Crypto-Lugia gibt es nur als Apex-Form mit der exklusiven Attacke Luftstoß+; erlöst wird daraus Luftstoß++.',
   HO_OH: 'Crypto-Ho-Oh gibt es nur als Apex-Form mit der exklusiven Attacke Läuterfeuer+; erlöst wird daraus Läuterfeuer++.',
   ZYGARDE: 'Die Zygarde-Formen tauschst du mit Zygarde-Zellen (Routen) um – 10 %, 50 % und Optimum haben eigene Werte.',
   SMEARGLE: 'Farbeagle lernt die Attacken, die es auf deinen Schnappschüssen sieht – nicht über TMs.',
   DITTO: 'Ditto verwandelt sich im Kampf in sein Gegenüber und übernimmt dessen Attacken – eine eigene Bewertung gibt es deshalb nicht.',
   SHEDINJA: 'Ninjatom hat immer nur 1 KP: Jeder Treffer besiegt es. Hochleveln lohnt sich nur für die Sammlung.',
-  MIMIKYU: 'Im Trainerkampf schützt Mimigmas Verkleidung einmal vor einer Lade-Attacke (danach Zerrissene Form mit weniger Verteidigung).',
 };
 
 // ---------- Hilfsfunktionen ----------
@@ -193,7 +181,6 @@ function indexGameMaster(gm) {
   const templates = [];
   const moves = new Map();
   const moveNamesById = new Map();
-  const combatMoves = new Map();
   const formSettings = new Map();
   const typeScalars = new Map();
   const weather = new Map();
@@ -232,10 +219,6 @@ function indexGameMaster(gm) {
       // Zusatz-Lade-Attacke einer Mega ("+"): VM_MOVE_TEMP_EVOLUTION_MEGA_X_V0150_POKEMON_MEWTWO
       const m = /^VM_MOVE_(TEMP_EVOLUTION_[A-Z_]+?)_V(\d{4})_POKEMON_(.+)$/.exec(templateId);
       if (m) plusMoves.set(`${m[3]}|${m[1]}`, { num: data.moveSettings.movementId, settings: data.moveSettings, tempEvoId: m[1], speciesId: m[3] });
-    } else if (data?.combatMove && /^COMBAT_/.test(templateId)) {
-      const vm = /^COMBAT_VM_MOVE_(TEMP_EVOLUTION_[A-Z_]+?)_V\d{4}_POKEMON_(.+)$/.exec(templateId);
-      if (vm) combatMoves.set(`plus:${vm[2]}|${vm[1]}`, data.combatMove);
-      else if (typeof data.combatMove.uniqueId === 'string') combatMoves.set(data.combatMove.uniqueId, data.combatMove);
     } else if (data?.formSettings) {
       formSettings.set(data.formSettings.pokemon, data.formSettings.forms ?? []);
     } else if (data?.typeEffective) {
@@ -263,7 +246,7 @@ function indexGameMaster(gm) {
   }
   if (!cpm || !battle || !upgrades) throw new Error('Spieldaten unvollständig: Level-Tabelle, Kampf- oder Power-up-Einstellungen fehlen.');
   return {
-    templates, moves, moveNamesById, combatMoves, formSettings, typeScalars, weather, cpm, battle, signatureMoves,
+    templates, moves, moveNamesById, formSettings, typeScalars, weather, cpm, battle, signatureMoves,
     upgrades, upgradeOverrides, lucky, primal, megaSettings, megaLevels, plusMoves,
   };
 }
@@ -343,16 +326,14 @@ function releaseIndex(pvpoke) {
   const released = new Set();
   const shadow = new Set();
   const pvpokeMegas = pvpoke.pokemon.filter((p) => p.released !== false && (p.tags ?? []).includes('mega'));
-  const bySpeciesId = new Map();
   for (const p of pvpoke.pokemon) {
     const types = p.types.filter((t) => t !== 'none').map((t) => t.toUpperCase());
     const key = statKey(p.dex, p.baseStats, types);
     const isShadow = (p.tags ?? []).includes('shadow');
-    bySpeciesId.set(p.speciesId, { key, shadow: isShadow, pvpoke: p });
     if (p.released === false) continue;
     if (isShadow) shadow.add(key); else released.add(key);
   }
-  return { released, shadow, pvpokeMegas, bySpeciesId };
+  return { released, shadow, pvpokeMegas };
 }
 
 // ---------- Namen ----------
@@ -517,7 +498,7 @@ function megaEntry(index, texts, root, tempEvoId, types, base, moveIds) {
   if (plus) {
     plusMove = `MEGA_PLUS_${root.speciesId}${/_(X|Y)$/.exec(tempEvoId)?.[0] ?? ''}`;
     moveIds.add(plusMove);
-    index.moves.set(plusMove, { num: plus.num, settings: plus.settings, plus: true, combatKey: `plus:${root.speciesId}|${tempEvoId}` });
+    index.moves.set(plusMove, { num: plus.num, settings: plus.settings, plus: true });
   }
   const levels = index.megaLevels.has(`${root.speciesId}|4`) ? 4 : 3;
   const branch = (root.settings.evolutionBranch ?? []).find((b) => b.temporaryEvolution === tempEvoId);
@@ -569,8 +550,7 @@ function addMissingMegas(index, pokemon, texts, pvpokeMegas, moveIds) {
 function buildMoves(index, texts, moveIds) {
   const moves = {};
   for (const id of [...moveIds].sort()) {
-    const { num, settings: m, plus, combatKey } = index.moves.get(id);
-    const combat = index.combatMoves.get(combatKey ?? id);
+    const { num, settings: m, plus } = index.moves.get(id);
     moves[id] = {
       name: texts.get(`move_name_${pad(num, 4)}`) ?? titleCase(id.replace(/_FAST$/, '')),
       type: RANDOM_TYPE_MOVES.has(id) ? null : typeKey(m.pokemonType),
@@ -579,28 +559,9 @@ function buildMoves(index, texts, moveIds) {
       energy: m.energyDelta ?? 0,
       fast: id.endsWith('_FAST'),
       ...(plus ? { plus: true } : {}),
-      pvp: combat ? {
-        power: combat.power ?? 0,
-        energy: combat.energyDelta ?? 0,
-        turns: id.endsWith('_FAST') ? (combat.durationTurns ?? 0) + 1 : null,
-        buffs: combat.buffs ? buffText(combat.buffs) : null,
-      } : null,
     };
   }
   return moves;
-}
-
-// Kurztext für Werte-Änderungen im Trainerkampf ("Angriff +1 (12,5 %)").
-function buffText(b) {
-  const parts = [];
-  const add = (value, who, stat) => { if (value) parts.push(`${who} ${stat} ${value > 0 ? '+' : ''}${value}`); };
-  add(b.attackerAttackStatStageChange, 'eigener', 'Angriff');
-  add(b.attackerDefenseStatStageChange, 'eigene', 'Verteidigung');
-  add(b.targetAttackStatStageChange, 'gegnerischer', 'Angriff');
-  add(b.targetDefenseStatStageChange, 'gegnerische', 'Verteidigung');
-  if (!parts.length) return null;
-  const chance = b.buffActivationChance ?? 1;
-  return `${parts.join(', ')}${chance < 1 ? ` (${round(chance * 100, 1).toString().replace('.', ',')} %)` : ''}`;
 }
 
 // ---------- Entwicklungen und Formwechsel ----------
@@ -683,37 +644,6 @@ function linkFamilies(pokemon, texts) {
   }
 }
 
-// ---------- Ligen (PvPoke) ----------
-
-function applyPvpRankings(pokemon, releases, rankings, moves, hints) {
-  const byStat = new Map();
-  for (const p of pokemon) {
-    if (p.variant !== 'normal') continue;
-    const k = `${statKey(p.dex, { atk: p.base.atk, def: p.base.def, hp: p.base.sta }, p.types)}|${p.shadow}`;
-    if (!byStat.has(k)) byStat.set(k, p);
-  }
-  const pvpMove = (id) => (moves[id] ? id : moves[`${id}_FAST`] ? `${id}_FAST` : null);
-  for (const league of LEAGUES) {
-    const list = rankings[league.id];
-    list.forEach((r, i) => {
-      const info = releases.bySpeciesId.get(r.speciesId);
-      if (!info) return;
-      const p = byStat.get(`${info.key}|${info.shadow}`);
-      if (!p) return;
-      p.rating ??= {};
-      if (p.rating[league.id]) return; // beste Platzierung zählt (z. B. kosmetische Varianten)
-      p.rating[league.id] = {
-        rank: i + 1,
-        of: list.length,
-        score: r.score,
-        grade: gradeByRank(i + 1, PVP_GRADES),
-        moves: (r.moveset ?? []).map(pvpMove).filter(Boolean),
-      };
-    });
-  }
-}
-
-const gradeByRank = (rank, limits) => (rank <= limits[0] ? 3 : rank <= limits[1] ? 2 : rank <= limits[2] ? 1 : 0);
 const gradeByRatio = (ratio, limits) => (ratio >= limits[0] - 1e-9 ? 3 : ratio >= limits[1] ? 2 : ratio >= limits[2] ? 1 : 0);
 
 // ---------- Raids ----------
@@ -735,28 +665,43 @@ function applyRaidRankings(data) {
     }
     const normal = rows.filter((r) => !isMega(r.p)).sort((a, b) => b.best.score - a.best.score);
     const megas = rows.filter((r) => isMega(r.p)).sort((a, b) => b.best.score - a.best.score);
-    const ref = normal[Math.min(4, normal.length - 1)]?.best.score ?? 1;
+    // Ohne Crypto: dieselbe Rangliste ohne Crypto-Pokémon, mit eigener Vergleichsgröße.
+    const plainList = normal.filter((r) => !r.p.shadow);
+    const refOf = (list) => list[Math.min(4, list.length - 1)]?.best.score ?? 1;
+    const ref = refOf(normal);
+    const refNoShadow = refOf(plainList);
     const megaRef = megas[0]?.best.score ?? 1;
-    const assign = (list, refScore, limits) => list.forEach((r, i) => {
-      const ratio = r.best.score / refScore;
-      const grade = gradeByRatio(ratio, limits);
-      const plainGrade = r.plain ? gradeByRatio(r.plain.score / refScore, limits) : 0;
+    const rankNoShadow = new Map(plainList.map((r, i) => [r.p.key, i + 1]));
+    const assign = (list, refScore, limits, ref2 = refScore) => list.forEach((r, i) => {
+      const grades = (refValue) => {
+        const grade = gradeByRatio(r.best.score / refValue, limits);
+        const plainGrade = r.plain ? gradeByRatio(r.plain.score / refValue, limits) : 0;
+        return { grade, plainGrade: plainGrade < grade ? plainGrade : undefined };
+      };
+      const withShadow = grades(refScore);
+      const without = r.p.shadow ? withShadow : grades(ref2);
       r.p.rating ??= {};
       (r.p.rating.raid ??= []).push({
         type,
         rank: i + 1,
         of: list.length,
-        ratio: round(ratio, 3),
-        grade,
+        ratio: round(r.best.score / refScore, 3),
+        grade: withShadow.grade,
+        // Spitze nur mit Elite-Attacke? Dann steht hier die Stufe ohne.
+        plainGrade: withShadow.plainGrade,
+        // Dasselbe ohne Crypto-Pokémon (Megas: gleich, sie haben eine eigene Liste).
+        rankNS: isMega(r.p) ? i + 1 : rankNoShadow.get(r.p.key) ?? null,
+        ofNS: isMega(r.p) ? list.length : plainList.length,
+        ratioNS: round(r.best.score / ref2, 3),
+        gradeNS: without.grade,
+        plainGradeNS: without.plainGrade,
         fast: r.best.fast,
         charged: r.best.charged,
         dps: round(r.best.dps, 2),
         tdo: round(r.best.tdo, 1),
-        // Spitze nur mit Elite-Attacke? Dann steht hier die Stufe ohne.
-        plainGrade: plainGrade < grade ? plainGrade : undefined,
       });
     });
-    assign(normal, ref, RAID_GRADES);
+    assign(normal, ref, RAID_GRADES, refNoShadow);
     assign(megas, megaRef, MEGA_GRADES);
     tables[type] = { normal: normal.map((r) => r.p.key), megas: megas.map((r) => r.p.key) };
   }
@@ -764,7 +709,7 @@ function applyRaidRankings(data) {
   for (const p of pokemon) {
     if (!p.rating?.raid) continue;
     p.rating.raid.sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
-    const keep = p.rating.raid.filter((r, i) => i < 1 || r.grade > 0).slice(0, 6);
+    const keep = p.rating.raid.filter((r, i) => i < 1 || r.grade > 0 || r.gradeNS > 0).slice(0, 6);
     p.rating.raid = keep;
   }
   return tables;
@@ -831,38 +776,43 @@ function applyMax(pokemon, dyna, hints) {
 
 // ---------- Gesamturteil ----------
 
-// Stufe pro Einsatz und die beste davon. Max-Kämpfe zählen nicht mit: Dafür braucht man ein eigenes
-// Dynamax-Pokémon (aus Max-Kämpfen) – die Bewertung steht deshalb getrennt. Eine Mega-Entwicklung zählt für ihre
-// normale Form mit: Wer sie hochlevelt, levelt auch die Mega. Vorstufen verweisen auf ihre beste Entwicklung.
+// Stufe für Raids & Arenen (bester Angriffstyp) – mit und ohne Crypto-Pokémon (Schalter auf der Seite).
+// Max-Kämpfe zählen nicht mit: Dafür braucht man ein eigenes Dynamax-Pokémon (aus Max-Kämpfen) – die Bewertung
+// steht deshalb getrennt. Eine Mega-Entwicklung zählt für ihre normale Form mit: Wer sie hochlevelt, levelt auch
+// die Mega. Vorstufen verweisen auf ihre beste Entwicklung.
 function applyVerdicts(pokemon) {
   const byKey = new Map(pokemon.map((p) => [p.key, p]));
-  const own = (p) => Math.max(0, ...(p.rating?.raid ?? []).map((r) => r.grade), ...LEAGUES.map((l) => p.rating?.[l.id]?.grade ?? 0));
   for (const p of pokemon) {
     p.rating ??= {};
-    p.rating.grade = own(p);
+    p.rating.grade = Math.max(0, ...(p.rating.raid ?? []).map((r) => r.grade));
+    p.rating.gradeNS = Math.max(0, ...(p.rating.raid ?? []).map((r) => r.gradeNS));
   }
   for (const p of pokemon) {
     if (!p.megas) continue;
     const best = p.megas.map((k) => byKey.get(k)).sort((a, b) => b.rating.grade - a.rating.grade)[0];
     if (best.rating.grade > 0) p.rating.mega = { key: best.key, grade: best.rating.grade };
     p.rating.grade = Math.max(p.rating.grade, best.rating.grade);
+    p.rating.gradeNS = Math.max(p.rating.gradeNS, best.rating.grade);
   }
-  // Beste erreichbare Entwicklung (über mehrere Stufen).
-  const bestEvolution = (p, seen = new Set()) => {
+  // Beste erreichbare Entwicklung (über mehrere Stufen), je Modus.
+  const bestEvolution = (p, field, seen = new Set()) => {
     let best = null;
     for (const e of p.evolutions ?? []) {
       const t = byKey.get(e.key);
       if (!t || seen.has(t.key)) continue;
       seen.add(t.key);
-      const candidate = { key: t.key, grade: t.rating.grade };
-      const deeper = bestEvolution(t, seen);
+      const candidate = { key: t.key, grade: t.rating[field] };
+      const deeper = bestEvolution(t, field, seen);
       for (const c of [candidate, deeper]) if (c && (!best || c.grade > best.grade)) best = c;
     }
     return best;
   };
   for (const p of pokemon) {
-    const evo = bestEvolution(p);
+    const evo = bestEvolution(p, 'grade');
     if (evo && evo.grade > p.rating.grade) p.rating.evolve = evo;
+    // Crypto-Vorstufen entwickeln sich zu Crypto-Pokémon – ohne Crypto gibt es sie nicht.
+    const evoNS = p.shadow ? null : bestEvolution(p, 'gradeNS');
+    if (evoNS && evoNS.grade > p.rating.gradeNS) p.rating.evolveNS = evoNS;
   }
 }
 
@@ -947,8 +897,6 @@ async function main() {
   const gm = await cached('game-master.json', SOURCES.gameMaster);
   const gmTime = await cached('game-master-timestamp.txt', SOURCES.gameMasterTime, 'text').catch(() => null);
   const pvpoke = await cached('pvpoke.json', SOURCES.pvpoke);
-  const rankings = {};
-  for (const l of LEAGUES) rankings[l.id] = await cached(`pvpoke-rankings-${l.cap ?? 10000}.json`, SOURCES.ranking(l.cap ?? 10000));
   const textsDe = textMap(await cached('texts-de.json', SOURCES.textsDe));
   const textsEn = textMap(await cached('texts-en.json', SOURCES.textsEn));
   const hints = [];
@@ -991,7 +939,7 @@ async function main() {
       gameMasterDate: gmTime ? new Date(Number(gmTime.trim())).toISOString() : null,
       gameMaster: { name: 'PokeMiners/game_masters', url: 'https://github.com/PokeMiners/game_masters' },
       texts: { name: 'holoholo-text', url: 'https://github.com/sora10pls/holoholo-text' },
-      pvpoke: { name: 'PvPoke', url: 'https://pvpoke.com/rankings/' },
+      pvpoke: { name: 'PvPoke', url: 'https://github.com/pvpoke/pvpoke' },
       dyna: { name: 'Dyna-Kompass', url: 'https://jason-z-tech.github.io/dyna-kompass/' },
       images: { name: 'PokeAPI', url: 'https://pokeapi.co/' },
     },
@@ -1008,8 +956,7 @@ async function main() {
       plusMoveFactor: [1, 1.1, 1.2, 1.3],
       megaLevels: megaLevelRules,
       megaDurationH: index.megaSettings ? Number(index.megaSettings.evolutionLengthMs) / 3600000 : 8,
-      leagues: LEAGUES.map((l) => ({ id: l.id, cap: l.cap, name: textsDe.get(l.text) ?? l.id })),
-      grades: { raid: RAID_GRADES, mega: MEGA_GRADES, pvp: PVP_GRADES, max: MAX_GRADES },
+      grades: { raid: RAID_GRADES, mega: MEGA_GRADES, max: MAX_GRADES },
     },
     upgrades,
     upgradeOverrides: Object.fromEntries([...index.upgradeOverrides].map(([k, v]) => [k, upgradeTable(v)])),
@@ -1023,8 +970,7 @@ async function main() {
   console.log('3/6 Raid-Ranglisten rechnen …');
   const raidTables = applyRaidRankings(data);
 
-  console.log('4/6 Ligen (PvPoke) und Max-Kämpfe (Dyna-Kompass) zuordnen …');
-  applyPvpRankings(pokemon, releases, rankings, moves, hints);
+  console.log('4/6 Max-Kämpfe (Dyna-Kompass) zuordnen und Urteile vergeben …');
   const max = applyMax(pokemon, dyna, hints);
   if (max) console.log(`   ${max.matched} von ${max.total} Dynamax-/Gigadynamax-Pokémon zugeordnet`);
   applyVerdicts(pokemon);

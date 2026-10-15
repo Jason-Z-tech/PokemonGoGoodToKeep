@@ -1,8 +1,8 @@
 'use strict';
 
-// Rechnung des Power-Kompass: Werte auf jedem Level, Power-up-Kosten, Raid-Stärke (DPS/TDO) und
-// IV-Rang für die Ligen. Klassisches Skript (läuft per Doppelklick über file://) – dasselbe Skript
-// nutzt das Daten-Skript in Node, damit Seite und Build garantiert gleich rechnen.
+// Rechnung des Power-Kompass: Werte auf jedem Level, Power-up-Kosten und Raid-Stärke (DPS/TDO).
+// Klassisches Skript (läuft per Doppelklick über file://) – dasselbe Skript nutzt das Daten-Skript in Node,
+// damit Seite und Build garantiert gleich rechnen.
 
 const PowerCalc = (() => {
   // Kosten werden aufgerundet; 1,2 × 10 ergibt in Gleitkomma 12,000000000000002 und darf nicht zu 13 werden.
@@ -159,74 +159,9 @@ const PowerCalc = (() => {
     return statsAt(data, pokemon, level + levelBoost(data, { buddy, megaBoost }), iv);
   }
 
-  // ---------- Ligen: IV-Rang ----------
-
-  // Höchstes Level (in halben Schritten bis maxLevel), auf dem die WP-Grenze nicht überschritten wird.
-  // WP steigen mit dem Level nie – deshalb genügt eine binäre Suche über die halben Level.
-  function levelUnderCap(data, base, iv, cap, maxLevel) {
-    if (!Number.isFinite(cap)) return maxLevel;
-    const steps = Math.round((maxLevel - 1) * 2);
-    const cpAtStep = (i) => combatPower(base, iv, cpmAt(data, 1 + i / 2));
-    if (cpAtStep(0) > cap) return null;
-    let lo = 0;
-    let hi = steps;
-    while (lo < hi) {
-      const mid = Math.ceil((lo + hi) / 2);
-      if (cpAtStep(mid) <= cap) lo = mid; else hi = mid - 1;
-    }
-    return 1 + lo / 2;
-  }
-
-  // Werte in einer Liga: Level unter der Grenze, WP, Angriff, Verteidigung, KP und Stat-Produkt.
-  function leagueStats(data, base, iv, cap, maxLevel) {
-    const level = levelUnderCap(data, base, iv, cap, maxLevel);
-    if (level === null) return null;
-    const cpm = cpmAt(data, level);
-    const atk = (base.atk + iv.atk) * cpm;
-    const def = (base.def + iv.def) * cpm;
-    const hp = hpOf(base, iv, cpm);
-    return { level, cp: combatPower(base, iv, cpm), atk, def, hp, product: atk * def * hp };
-  }
-
-  const ivCache = new Map();
-
-  // Alle 4096 IV-Kombinationen, nach Stat-Produkt sortiert (bestes zuerst). minIv: Mindestwert (z. B. Raids: 10).
-  function ivTable(data, pokemon, cap, maxLevel) {
-    const key = `${pokemon.base.atk}|${pokemon.base.def}|${pokemon.base.sta}|${cap}|${maxLevel}`;
-    if (ivCache.has(key)) return ivCache.get(key);
-    const list = [];
-    for (let a = 0; a <= 15; a++) for (let d = 0; d <= 15; d++) for (let s = 0; s <= 15; s++) {
-      const st = leagueStats(data, pokemon.base, { atk: a, def: d, sta: s }, cap, maxLevel);
-      if (st) list.push({ iv: { atk: a, def: d, sta: s }, ...st });
-    }
-    list.sort((x, y) => y.product - x.product || y.atk - x.atk);
-    if (ivCache.size > 60) ivCache.clear();
-    ivCache.set(key, list);
-    return list;
-  }
-
-  // Rang einer IV-Kombination in einer Liga (1 = bestes Stat-Produkt; gleiche Produkte teilen sich den Rang).
-  function ivRank(data, pokemon, iv, cap, maxLevel) {
-    const table = ivTable(data, pokemon, cap, maxLevel);
-    const mine = leagueStats(data, pokemon.base, iv, cap, maxLevel);
-    if (!mine || !table.length) return null;
-    const better = table.findIndex((e) => e.product <= mine.product + EPS);
-    return {
-      ...mine,
-      rank: (better < 0 ? table.length : better) + 1,
-      of: table.length,
-      percent: mine.product / table[0].product,
-      best: table[0],
-    };
-  }
-
-  // Maximale WP auf einem Level – ob ein Pokémon überhaupt an eine WP-Grenze herankommt.
-  const maxCp = (data, pokemon, level) => combatPower(pokemon.base, FULL_IV, cpmAt(data, level));
-
   return {
     FULL_IV, cpmAt, combatPower, statsAt, levelBoost, powerUpCost, upgradeTable,
     pveTarget, pvePerformance, pveMoves, bestPve, pveByType, pveStats, moveOf,
-    levelUnderCap, leagueStats, ivTable, ivRank, maxCp,
   };
 })();
 

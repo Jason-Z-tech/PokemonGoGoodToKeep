@@ -1,7 +1,8 @@
 'use strict';
 
-// Startseite: alle Pokémon mit Bewertung – Suche, Filter (Bewertung, Einsatz, Typ, Art) und Sortierung.
-// Mit Einsatz "Raids" und einem Typ wird die Liste zur Rangliste der besten Angreifer dieses Typs.
+// Ansicht "Alle Pokémon": jedes Pokémon mit Bewertung – Suche (oben auf der Seite), Filter (Einsatz, Bewertung,
+// Typ, Art) und Sortierung. Mit Einsatz "Raids" und einem Typ wird die Liste zur vollständigen Rangliste dieses Typs.
+// Der Schalter "Crypto-Pokémon" blendet Crypto-Pokémon aus und rechnet Plätze und Bewertungen ohne sie.
 
 const Overview = (() => {
   const { el, data, formatNumber } = Power;
@@ -10,7 +11,6 @@ const Overview = (() => {
   const USES = [
     { id: 'all', label: 'Alle Einsätze' },
     { id: 'raid', label: 'Raids & Arenen' },
-    ...data.rules.leagues.map((l) => ({ id: l.id, label: l.name })),
     { id: 'max', label: 'Max-Kämpfe' },
   ];
   const GROUPS = [
@@ -18,7 +18,7 @@ const Overview = (() => {
     { id: 'normal', label: 'Normal' },
     { id: 'legendary', label: 'Legendär & Mysteriös' },
     { id: 'mega', label: 'Mega & Proto' },
-    { id: 'shadow', label: 'Crypto' },
+    { id: 'shadow', label: 'Nur Crypto', crypto: true },
   ];
   const GRADE_FILTERS = [
     { id: 'all', label: 'Alle' },
@@ -28,8 +28,8 @@ const Overview = (() => {
     { id: 'no', label: 'Lohnt nicht', grade: 0 },
     { id: 'evolve', label: 'Entwickeln' },
   ];
-  const DEFAULTS = { query: '', grade: 'all', group: 'all', use: 'all', type: '', sort: 'dex' };
-  const state = { ...DEFAULTS, shown: STEP };
+  const DEFAULTS = { grade: 'all', group: 'all', use: 'all', type: '', sort: 'dex' };
+  const state = { ...DEFAULTS, query: '', shown: STEP };
 
   const normalized = new Map(data.pokemon.map((p) => [p.key, Power.normalize(`${p.name} ${p.nameEn} ${p.dex}`)]));
 
@@ -37,46 +37,38 @@ const Overview = (() => {
   const VARIANT_ORDER = (p) => (p.shadow ? 2 : p.variant === 'normal' ? 0 : 1);
   const byDex = (a, b) => a.dex - b.dex || VARIANT_ORDER(a) - VARIANT_ORDER(b) || a.name.localeCompare(b.name, 'de');
 
-  // ---------- Bewertung je Einsatz ----------
+  // ---------- Plätze ----------
 
-  function raidEntry(p, type) {
-    if (!p.rating.raid) return null;
-    if (!type) return p.rating.raid[0];
-    return p.rating.raid.find((r) => r.type === type) ?? null;
-  }
-
-  // Platz in der Raid-Rangliste eines Typs – aus der vollständigen Liste (auch ohne eigene Bewertung).
-  const raidRank = new Map();
+  // Platz in der vollständigen Raid-Rangliste eines Typs – mit und ohne Crypto-Pokémon.
+  const ranks = { crypto: new Map(), plain: new Map() };
   for (const [type, t] of Object.entries(data.raidTables)) {
-    t.normal.forEach((k, i) => raidRank.set(`${type}|${k}`, i + 1));
-    t.megas.forEach((k, i) => raidRank.set(`${type}|${k}`, i + 1));
+    t.normal.forEach((k, i) => ranks.crypto.set(`${type}|${k}`, i + 1));
+    t.normal.filter((k) => !Power.pokemon(k).shadow).forEach((k, i) => ranks.plain.set(`${type}|${k}`, i + 1));
+    t.megas.forEach((k, i) => { ranks.crypto.set(`${type}|${k}`, i + 1); ranks.plain.set(`${type}|${k}`, i + 1); });
   }
+  const raidRank = (type, key) => (Power.settings.crypto ? ranks.crypto : ranks.plain).get(`${type}|${key}`) ?? null;
 
-  // Stufe und Platz für den gewählten Einsatz (Typ nur bei Raids und Max-Kämpfen).
+  // Stufe und Platz für den gewählten Einsatz.
   function useRating(p, use = state.use, type = state.type, group = state.group) {
-    if (use === 'all') return { grade: p.rating.grade, rank: null };
+    if (use === 'all') return { grade: Power.gradeOf(p), rank: null };
     if (use === 'raid') {
       // Megas haben eine eigene Rangliste (pro Person nur eine aktiv) – nur unter "Mega & Proto".
       if ((p.variant !== 'normal') !== (group === 'mega')) return null;
+      const list = Power.raidList(p);
       if (type) {
-        const rank = raidRank.get(`${type}|${p.key}`);
+        const rank = raidRank(type, p.key);
         if (!rank) return null;
-        return { grade: raidEntry(p, type)?.grade ?? 0, rank };
+        return { grade: list.find((r) => r.type === type)?.grade ?? 0, rank, type };
       }
-      const r = raidEntry(p);
-      return r ? { grade: r.grade, rank: r.rank, type: r.type } : null;
+      return list[0] ? { grade: list[0].grade, rank: list[0].rank, type: list[0].type } : null;
     }
-    if (use === 'max') {
-      const m = p.rating.max;
-      if (!m) return null;
-      if (type) {
-        const a = m.attack.find((x) => x.type === type);
-        return a ? { grade: a.grade, rank: a.rank } : null;
-      }
-      return { grade: m.grade, rank: m.attack[0]?.rank ?? null, type: m.attack[0]?.type };
+    const m = p.rating.max;
+    if (!m) return null;
+    if (type) {
+      const a = m.attack.find((x) => x.type === type);
+      return a ? { grade: a.grade, rank: a.rank, type } : null;
     }
-    const l = p.rating[use];
-    return l ? { grade: l.grade, rank: l.rank } : null;
+    return { grade: m.grade, rank: m.attack[0]?.rank ?? null, type: m.attack[0]?.type };
   }
 
   // ---------- Filter ----------
@@ -91,9 +83,9 @@ const Overview = (() => {
 
   function matchesGrade(p, filter, rating) {
     if (filter === 'all') return true;
-    if (filter === 'evolve') return Boolean(p.rating.evolve);
+    if (filter === 'evolve') return Boolean(Power.evolveOf(p));
     const g = GRADE_FILTERS.find((f) => f.id === filter).grade;
-    if (state.use === 'all') return !p.rating.evolve && p.rating.grade === g;
+    if (state.use === 'all') return !Power.evolveOf(p) && Power.gradeOf(p) === g;
     return rating.grade === g;
   }
 
@@ -102,12 +94,13 @@ const Overview = (() => {
     const query = Power.normalize(s.query);
     const list = [];
     for (const p of data.pokemon) {
+      if (!Power.visible(p)) continue;
       if (query && !normalized.get(p.key).includes(query)) continue;
       if (!matchesGroup(p, s.group)) continue;
       const rating = useRating(p, s.use, s.type, s.group);
       if (!rating) continue;
       // Typ-Filter: bei Raids und Max-Kämpfen der Angriffstyp, sonst der Typ des Pokémon.
-      if (s.type && s.use !== 'raid' && s.use !== 'max' && !p.types.includes(s.type)) continue;
+      if (s.type && s.use === 'all' && !p.types.includes(s.type)) continue;
       list.push({ p, rating });
     }
     return list;
@@ -120,18 +113,20 @@ const Overview = (() => {
       name: (a, b) => a.p.name.localeCompare(b.p.name, 'de'),
       best: ranked
         ? (a, b) => (a.rating.rank ?? 1e9) - (b.rating.rank ?? 1e9) || b.rating.grade - a.rating.grade || byDex(a.p, b.p)
-        : (a, b) => b.rating.grade - a.rating.grade || Number(Boolean(a.p.rating.evolve)) - Number(Boolean(b.p.rating.evolve)) || byDex(a.p, b.p),
+        : (a, b) => b.rating.grade - a.rating.grade || Number(Boolean(Power.evolveOf(a.p))) - Number(Boolean(Power.evolveOf(b.p))) || byDex(a.p, b.p),
     }[state.sort];
     return [...list].sort(cmp);
   }
 
   // ---------- Darstellung ----------
 
-  function tile(p, rating) {
-    const ranked = state.use !== 'all' && rating.rank;
-    const use = USES.find((u) => u.id === state.use);
-    return el('a', { class: `poke-tile poke-tile--${Power.verdictOf(p).id}${ranked ? ' poke-tile--ranked' : ''}`, href: `#pokemon=${p.key}`, data: { pokemon: p.key } }, [
-      ranked ? el('span', { class: 'poke-tile__rank', title: `Platz in ${use.label}`, text: `#${rating.rank}` }) : null,
+  // Kachel eines Pokémon (auch von den anderen Ansichten genutzt). rank: Platz oben rechts, reason: Text darunter.
+  function tile(p, { rank = null, grade = null, reason = null, rankTitle = 'Platz' } = {}) {
+    return el('a', {
+      class: `poke-tile poke-tile--${grade === null ? Power.verdictOf(p).id : Power.GRADES[grade].id}${rank ? ' poke-tile--ranked' : ''}`,
+      href: `#pokemon=${p.key}`, data: { pokemon: p.key },
+    }, [
+      rank ? el('span', { class: 'poke-tile__rank', title: rankTitle, text: `#${rank}` }) : null,
       Power.pokemonArt(p, { size: 'md' }),
       el('span', { class: 'poke-tile__body' }, [
         el('span', { class: 'poke-tile__name' }, [el('span', { text: p.name })]),
@@ -141,8 +136,8 @@ const Overview = (() => {
           ...Power.badges(p),
         ]),
         el('span', { class: 'poke-tile__verdict' }, [
-          state.use === 'all' ? Power.verdictBadge(p) : Power.gradeBadge(rating.grade),
-          el('span', { class: 'poke-tile__reason', text: state.use === 'all' ? Power.shortReason(p) : useText(p, rating) }),
+          grade === null ? Power.verdictBadge(p) : Power.gradeBadge(grade),
+          el('span', { class: 'poke-tile__reason', text: reason ?? Power.shortReason(p) }),
         ]),
       ]),
     ]);
@@ -151,9 +146,7 @@ const Overview = (() => {
   function useText(p, rating) {
     const type = rating.type ?? state.type;
     if (state.use === 'raid') return `Platz ${rating.rank}${type ? ` als ${data.types[type]}-Angreifer` : ''}${p.variant !== 'normal' ? ' (Megas)' : ''}`;
-    if (state.use === 'max') return `Platz ${rating.rank} ${type ? `(${data.types[type]})` : ''} – nur als Dynamax`;
-    const l = p.rating[state.use];
-    return `Platz ${l.rank} von ${formatNumber(l.of)} · Wertung ${formatNumber(l.score, 1)}`;
+    return `Platz ${rating.rank}${type ? ` (${data.types[type]})` : ''} – nur als Dynamax`;
   }
 
   function chipGroup(id, label, options, key, counts = null) {
@@ -196,14 +189,14 @@ const Overview = (() => {
     const base = candidates({ grade: 'all' });
     for (const f of GRADE_FILTERS) gradeCounts[f.id] = base.filter(({ p, rating }) => matchesGrade(p, f.id, rating)).length;
     const gradeOptions = GRADE_FILTERS.filter((f) => f.id !== 'evolve' || state.use === 'all');
-    const typeLabel = state.use === 'raid' || state.use === 'max' ? 'Angriffstyp' : 'Typ';
-    const changed = Object.keys(DEFAULTS).some((k) => k !== 'query' && state[k] !== DEFAULTS[k]);
+    const typeLabel = state.use === 'all' ? 'Typ' : 'Angriffstyp';
+    const changed = Object.keys(DEFAULTS).some((k) => state[k] !== DEFAULTS[k]);
     return el('div', { class: 'filters' }, [
       chipGroup('filter-use', 'Einsatz', USES, 'use'),
       chipGroup('filter-grade', 'Bewertung', gradeOptions, 'grade', gradeCounts),
       el('div', { class: 'filters__row' }, [
         select('filter-type', typeLabel, [{ id: '', label: 'Alle Typen' }, ...Power.TYPE_ORDER.map((t) => ({ id: t, label: data.types[t] }))], 'type'),
-        select('filter-group', 'Art', GROUPS, 'group'),
+        select('filter-group', 'Art', GROUPS.filter((g) => !g.crypto || Power.settings.crypto), 'group'),
         select('filter-sort', 'Sortierung', [
           { id: 'dex', label: 'Pokédex-Nummer' },
           { id: 'best', label: state.use === 'all' ? 'Beste zuerst' : 'Rangliste (Platz)' },
@@ -213,7 +206,7 @@ const Overview = (() => {
       changed ? el('button', {
         type: 'button', class: 'reset-btn', id: 'filter-reset',
         onclick: () => {
-          Object.assign(state, { ...DEFAULTS, query: state.query, shown: STEP });
+          Object.assign(state, DEFAULTS, { shown: STEP });
           render();
           document.querySelector('#filter-use button[data-value="all"]')?.focus({ preventScroll: true });
         },
@@ -222,34 +215,35 @@ const Overview = (() => {
   }
 
   function hintText() {
+    const crypto = Power.settings.crypto ? '' : ' Ohne Crypto-Pokémon gerechnet.';
     if (state.use === 'raid') {
       return state.type
-        ? `Rangliste: die besten ${data.types[state.type]}-Angreifer gegen einen Raid-Boss, der schwach gegen ${data.types[state.type]} ist (Level 40, 15/15/15). ${state.group === 'mega' ? 'Mega-Entwicklungen auf ihrem höchsten Mega-Level.' : 'Mega-Entwicklungen stehen unter „Art: Mega & Proto“.'}`
-        : 'Pokémon mit ihrem stärksten Angriffstyp. Wähle einen Angriffstyp für die vollständige Rangliste.';
+        ? `Rangliste: die besten ${data.types[state.type]}-Angreifer gegen einen Raid-Boss, der schwach gegen ${data.types[state.type]} ist (Level 40, 15/15/15). ${state.group === 'mega' ? 'Mega-Entwicklungen auf ihrem höchsten Mega-Level.' : 'Mega-Entwicklungen stehen unter „Art: Mega & Proto“.'}${crypto}`
+        : `Pokémon mit ihrem stärksten Angriffstyp. Wähle einen Angriffstyp für die vollständige Rangliste.${crypto}`;
     }
     if (state.use === 'max') return 'Gilt nur für Dynamax- und Gigadynamax-Pokémon aus Max-Kämpfen – mehr im Dyna-Kompass.';
-    if (state.use !== 'all') return `Platz in der Gesamt-Rangliste von PvPoke für die ${Power.league(state.use).name} – mit passenden IVs (Details auf der Pokémon-Seite).`;
     return null;
   }
 
   function render() {
     const list = sorted(candidates().filter(({ p, rating }) => matchesGrade(p, state.grade, rating)));
-    const target = document.getElementById('list-controls');
-    target.replaceChildren(controls());
+    document.getElementById('list-controls').replaceChildren(controls());
     const hint = hintText();
     document.getElementById('list-hint').textContent = hint ?? '';
     document.getElementById('list-hint').hidden = !hint;
     const query = state.query.trim();
     document.getElementById('list-count').textContent = list.length
-      ? `${formatNumber(list.length)} ${list.length === 1 ? 'Pokémon' : 'Pokémon'}${query ? ` passen zu „${query}“` : ''}`
+      ? `${formatNumber(list.length)} Pokémon${query ? ` passen zu „${query}“` : ''}`
       : `Kein Pokémon passt${query ? ` zu „${query}“` : ''} – Filter lockern?`;
     const shown = list.slice(0, state.shown);
-    document.getElementById('poke-grid').replaceChildren(...shown.map(({ p, rating }) => el('li', {}, [tile(p, rating)])));
+    const ranked = state.use !== 'all';
+    document.getElementById('poke-grid').replaceChildren(...shown.map(({ p, rating }) => el('li', {}, [
+      ranked ? tile(p, { rank: rating.rank, grade: rating.grade, reason: useText(p, rating), rankTitle: `Platz in ${USES.find((u) => u.id === state.use).label}` }) : tile(p),
+    ])));
     const rest = list.length - shown.length;
     const more = document.getElementById('list-more');
     more.hidden = rest <= 0;
     more.textContent = `Weitere ${Math.min(STEP, rest)} anzeigen (noch ${formatNumber(rest)})`;
-    document.getElementById('search-clear').hidden = !state.query;
   }
 
   function showMore() {
@@ -260,34 +254,22 @@ const Overview = (() => {
   }
 
   function init() {
-    const count = (f) => data.pokemon.filter(f).length;
-    document.getElementById('data-meta').replaceChildren(
-      el('strong', { text: formatNumber(count((p) => p.variant === 'normal' && !p.shadow)) }), ' Pokémon · ',
-      `${formatNumber(count((p) => p.shadow))} Crypto · ${count((p) => p.variant !== 'normal')} Mega & Proto`,
-      data.sources.gameMasterDate ? ` · Spieldaten vom ${Power.formatDate(data.sources.gameMasterDate)}` : '',
-    );
-    const search = document.getElementById('search');
-    search.addEventListener('input', () => { state.query = search.value; state.shown = STEP; render(); });
-    document.getElementById('finder').addEventListener('submit', (e) => e.preventDefault());
-    document.getElementById('search-clear').addEventListener('click', () => {
-      search.value = '';
-      state.query = '';
+    document.getElementById('list-more').addEventListener('click', showMore);
+    Search.onQuery((q) => { state.query = q; state.shown = STEP; render(); });
+    Power.onSettingsChange(() => {
+      if (!Power.settings.crypto && state.group === 'shadow') state.group = 'all';
       state.shown = STEP;
       render();
-      search.focus();
     });
-    document.getElementById('list-more').addEventListener('click', showMore);
-    // Der Browser stellt Formularwerte beim Neuladen wieder her – Anzeige daran angleichen.
-    window.addEventListener('pageshow', () => { state.query = search.value; render(); });
+    state.query = Search.query();
     render();
   }
 
-  // Für Direktlinks wie #raid=FIRE: Rangliste eines Typs zeigen.
+  // Für Adressen wie #rangliste=raid-fire: die Liste als Rangliste zeigen.
   function showRanking({ use, type = '', group = 'all' }) {
-    Object.assign(state, { ...DEFAULTS, use, type, group, sort: 'best', shown: STEP });
-    document.getElementById('search').value = '';
+    Object.assign(state, DEFAULTS, { use, type, group, sort: 'best', shown: STEP });
     render();
   }
 
-  return { init, render, showRanking, useRating, raidRank: (type, key) => raidRank.get(`${type}|${key}`) ?? null };
+  return { init, render, showRanking, tile, raidRank, byDex };
 })();

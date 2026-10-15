@@ -86,12 +86,17 @@ function testCalc() {
   check(cost(mewtwo, 1, 40, { shadow: true }).candy === 406, 'Crypto 1→40: 406 Bonbons erwartet');
   // Datenbestand: jedes Pokémon mit gültigen Werten, Bewertungen im Bereich, Verweise gültig.
   for (const p of DATA.pokemon) {
-    const ok = ['atk', 'def', 'sta'].every((k) => p.base[k] > 0) && p.types.length >= 1 && [0, 1, 2, 3].includes(p.rating.grade);
+    const ok = ['atk', 'def', 'sta'].every((k) => p.base[k] > 0) && p.types.length >= 1
+      && [0, 1, 2, 3].includes(p.rating.grade) && [0, 1, 2, 3].includes(p.rating.gradeNS);
     check(ok, `${p.key}: ungültige Grundwerte oder Bewertung`);
     for (const k of [p.parent, p.normalKey, p.shadowKey, p.preEvo, ...(p.megas ?? []), ...(p.evolutions ?? []).map((e) => e.key), ...(p.formChanges ?? []).map((f) => f.key)]) {
       if (k) check(byKey.has(k), `${p.key}: Verweis auf unbekanntes Pokémon ${k}`);
     }
     for (const id of [...p.fast, ...p.charged, ...p.eliteFast, ...p.eliteCharged]) check(Boolean(DATA.moves[id]), `${p.key}: unbekannte Attacke ${id}`);
+  }
+  // Ohne Crypto steht ein normales Pokémon nie schlechter da als mit (die Crypto-Pokémon fallen ja weg).
+  for (const p of DATA.pokemon.filter((q) => !q.shadow && q.variant === 'normal')) {
+    for (const r of p.rating.raid ?? []) check(r.rankNS <= r.rank && r.gradeNS >= r.grade && r.ratioNS >= r.ratio, `${p.key} ${r.type}: ohne Crypto schlechter als mit`);
   }
   // Ranglisten: jede Typ-Liste enthält nur Pokémon mit einer Lade-Attacke dieses Typs.
   for (const [type, t] of Object.entries(DATA.raidTables)) {
@@ -139,12 +144,16 @@ async function testStart(page, vp) {
   const focused = await page.eval('document.activeElement?.dataset?.pokemon ?? null');
   check(s.tiles.length === 96 && focused === s.tiles[48].key, `${tag} "Weitere anzeigen": ${s.tiles.length} Kacheln, Fokus ${focused}`);
 
-  // Suche (deutsch, englisch, Nummer).
+  // Suche oben (deutsch, englisch, Nummer): filtert die Liste und zeigt Vorschläge.
   for (const [query, expect] of [['mamutel', 'mamoswine'], ['Mamoswine', 'crypto-mamoswine'], ['445', 'garchomp'], ['mega gengar', 'gengar-mega']]) {
     await page.type('#search', query);
     s = await listState(page);
     check(s.tiles.some((t) => t.key === expect), `${tag} Suche "${query}" findet ${expect} nicht`);
+    const suggest = await page.eval(`[...document.querySelectorAll('#search-suggest [data-pokemon]')].map((o) => o.dataset.pokemon)`);
+    check(suggest.includes(expect), `${tag} Vorschläge zu "${query}" ohne ${expect}: ${suggest.join(', ')}`);
   }
+  await page.key('Escape');
+  check(await page.eval(`document.getElementById('search-suggest').hidden`), `${tag} Escape schließt die Vorschläge`);
   await page.click('#search-clear');
   s = await listState(page);
   check(s.tiles.length === 48 && (await page.eval('document.getElementById("search").value')) === '', `${tag} Suche leeren`);
@@ -162,15 +171,6 @@ async function testStart(page, vp) {
   check(s.tiles.length && s.tiles.every((t) => t.verdict === 'verdict--evolve' && byKey.get(t.key).rating.evolve), `${tag} Filter Entwickeln`);
   await page.click('#filter-grade button[data-value="all"]');
 
-  // Ligen: Rangliste aufsteigend, Platz wie in den Daten.
-  for (const league of DATA.rules.leagues) {
-    await page.click(`#filter-use button[data-value="${league.id}"]`);
-    s = await listState(page);
-    const ranks = s.tiles.map((t) => t.rank);
-    check(ranks.length && ranks.every((r, i) => r !== null && (i === 0 || ranks[i - 1] <= r)), `${tag} ${league.name}: nicht nach Platz sortiert`);
-    check(s.tiles.every((t) => byKey.get(t.key).rating[league.id]?.rank === t.rank), `${tag} ${league.name}: Platz passt nicht zu den Daten`);
-  }
-
   // Raids mit Angriffstyp: genau die Rangliste aus den Daten.
   await page.click('#filter-use button[data-value="raid"]');
   for (const type of ['FIRE', 'DRAGON', 'FAIRY']) {
@@ -178,15 +178,95 @@ async function testStart(page, vp) {
     s = await listState(page);
     const expected = DATA.raidTables[type].normal.slice(0, 48);
     check(s.tiles.map((t) => t.key).join() === expected.join(), `${tag} Raids ${type}: Reihenfolge weicht ab`);
+    check(s.tiles.every((t, i) => t.rank === i + 1), `${tag} Raids ${type}: Plätze nicht 1, 2, 3 …`);
     await page.eval(`(() => { const s = document.getElementById('filter-group'); s.value = 'mega'; s.dispatchEvent(new Event('change')); })()`);
     s = await listState(page);
     check(s.tiles.map((t) => t.key).join() === DATA.raidTables[type].megas.slice(0, 48).join(), `${tag} Raids ${type} (Mega): Reihenfolge weicht ab`);
     await page.eval(`(() => { const s = document.getElementById('filter-group'); s.value = 'all'; s.dispatchEvent(new Event('change')); })()`);
   }
+
+  // Crypto-Schalter aus: keine Crypto-Pokémon mehr, Plätze ohne sie neu gezählt, Bewertungen ohne sie.
+  await page.eval(`(() => { const s = document.getElementById('filter-type'); s.value = 'FIRE'; s.dispatchEvent(new Event('change')); })()`);
+  await page.click('#crypto-toggle');
+  s = await listState(page);
+  const plainFire = DATA.raidTables.FIRE.normal.filter((k) => !byKey.get(k).shadow);
+  check(s.tiles.map((t) => t.key).join() === plainFire.slice(0, 48).join() && s.tiles.every((t, i) => t.rank === i + 1), `${tag} Ohne Crypto: Feuer-Rangliste falsch`);
   await page.click('#filter-reset');
   s = await listState(page);
-  check(s.tiles.length === 48 && !(await page.eval('Boolean(document.getElementById("filter-reset"))')), `${tag} Filter zurücksetzen`);
+  check(num(s.count.split(' ')[0]) === DATA.pokemon.filter((p) => !p.shadow).length && s.tiles.every((t) => !byKey.get(t.key).shadow), `${tag} Ohne Crypto: ${s.count}`);
+  await page.click('#filter-grade button[data-value="top"]');
+  s = await listState(page);
+  const topNS = DATA.pokemon.filter((p) => !p.shadow && !p.rating.evolveNS && p.rating.gradeNS === 3).length;
+  check(num(s.count.split(' ')[0]) === topNS, `${tag} Ohne Crypto, Spitze: ${s.count} statt ${topNS}`);
+  await page.click('#filter-grade button[data-value="all"]');
+  await page.click('#crypto-toggle');
+  s = await listState(page);
+  check(num(s.count.split(' ')[0]) === DATA.pokemon.length, `${tag} Crypto wieder an: ${s.count}`);
   check(s.overflow <= 0, `${tag} Liste läuft seitlich über`);
+
+  // Vorschlag per Tastatur öffnen: Pfeil runter, Enter.
+  await page.type('#search', 'mamu');
+  await page.key('ArrowDown', 'ArrowDown');
+  const first = await page.eval(`document.querySelector('#search-suggest [aria-selected="true"]')?.dataset.pokemon ?? null`);
+  check(first && (await page.eval(`document.getElementById('search').getAttribute('aria-activedescendant')`)), `${tag} Vorschlag nicht ausgewählt`);
+  await page.key('Enter');
+  await sleep(150);
+  const opened = await page.eval(`({ title: document.getElementById('detail-title')?.textContent ?? null, hash: location.hash })`);
+  check(first && opened.hash === `#pokemon=${first}` && opened.title === byKey.get(first).name, `${tag} Vorschlag öffnen: ${JSON.stringify(opened)}`);
+}
+
+// ---------- Ansichten "Nach Typ" und "Top-Rankings" ----------
+
+async function testBrowse(page, vp) {
+  const tag = `[${vp.label}]`;
+  await page.goto(url('index.html'));
+  await page.click('.view-tabs__link[data-view="type"]');
+  check(await page.eval(`document.querySelectorAll('.type-btn').length`) === 18, `${tag} Nach Typ: 18 Typ-Knöpfe erwartet`);
+  await page.click('a.type-btn[data-type="FIRE"]');
+  const fire = await page.eval(`({
+    raid: [...document.querySelectorAll('#type-raid-list a')].map((a) => a.dataset.pokemon),
+    mega: [...document.querySelectorAll('#type-mega-list a')].map((a) => a.dataset.pokemon),
+    all: [...document.querySelectorAll('#type-grid-list a')].map((a) => a.dataset.pokemon),
+    hash: location.hash,
+    overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  })`);
+  check(fire.hash === '#typ=fire', `${tag} Typ-Adresse: ${fire.hash}`);
+  check(fire.raid.join() === DATA.raidTables.FIRE.normal.slice(0, 10).join(), `${tag} Feuer: Top 10 weichen von der Rangliste ab`);
+  check(fire.mega.join() === DATA.raidTables.FIRE.megas.slice(0, 3).join(), `${tag} Feuer: Top-Megas weichen ab`);
+  check(fire.all.length === 48 && fire.all.every((k) => byKey.get(k).types.includes('FIRE')), `${tag} Feuer: "Alle Feuer-Pokémon" enthält andere Typen`);
+  check(fire.overflow <= 0, `${tag} Nach Typ läuft seitlich über`);
+  // Ohne Crypto: Top 10 ohne Crypto-Pokémon.
+  await page.click('#crypto-toggle');
+  const plain = await page.eval(`[...document.querySelectorAll('#type-raid-list a')].map((a) => a.dataset.pokemon)`);
+  check(plain.join() === DATA.raidTables.FIRE.normal.filter((k) => !byKey.get(k).shadow).slice(0, 10).join(), `${tag} Feuer ohne Crypto weicht ab`);
+  await page.click('#crypto-toggle');
+  // Pokémon öffnen und zurück: wieder bei den Feuer-Pokémon, Fokus auf dem Eintrag.
+  const key = DATA.raidTables.FIRE.normal[1];
+  await page.click(`#type-raid-list a[data-pokemon="${key}"]`);
+  check((await page.eval(`document.getElementById('back').textContent`)) === '← Feuer-Pokémon', `${tag} Zurück-Link zu Feuer-Pokémon`);
+  await page.click('#back');
+  await sleep(150);
+  const back = await page.eval(`({ hash: location.hash, focus: document.activeElement?.dataset?.pokemon ?? null })`);
+  check(back.hash === '#typ=fire' && back.focus === key, `${tag} Zurück aus Typ-Ansicht: ${JSON.stringify(back)}`);
+
+  // Top-Rankings: beste Angreifer nach Wertung, Karten je Typ.
+  await page.click('.view-tabs__link[data-view="top"]');
+  const top = await page.eval(`[...document.querySelectorAll('#top-list a')].map((a) => a.dataset.pokemon)`);
+  const ratio = (k) => Math.max(...byKey.get(k).rating.raid.map((r) => r.ratio));
+  check(top.length === 50 && top.every((k, i) => i === 0 || ratio(top[i - 1]) >= ratio(k) - 1e-9), `${tag} Top-Rankings: nicht nach Wertung sortiert`);
+  const best = DATA.pokemon.filter((p) => p.variant === 'normal' && p.rating.raid?.length).sort((a, b) => ratio(b.key) - ratio(a.key))[0];
+  check(top[0] === best.key, `${tag} Top-Rankings: Platz 1 ${top[0]} statt ${best.key}`);
+  for (const [tab, list, n] of [['raid', 'normal', 5], ['mega', 'megas', 3]]) {
+    await page.click(`.sub-tabs__link[data-top="${tab}"]`);
+    const cards = await page.eval(`[...document.querySelectorAll('#top-cards .type-card')].map((c) => ({ type: c.dataset.type, keys: [...c.querySelectorAll('a.card-row')].map((a) => a.dataset.pokemon) }))`);
+    check(cards.length === 18 && cards.every((c) => c.keys.join() === DATA.raidTables[c.type][list].slice(0, n).join()), `${tag} Top-Rankings ${tab}: Karten weichen von den Ranglisten ab`);
+  }
+  await page.click('.sub-tabs__link[data-top="max"]');
+  check(await page.eval(`document.querySelectorAll('#top-cards .type-card').length`) === 18, `${tag} Top-Rankings Max-Kämpfe`);
+  check((await page.eval('document.documentElement.scrollWidth - document.documentElement.clientWidth')) <= 0, `${tag} Top-Rankings läuft seitlich über`);
+  // Zurück zu "Alle Pokémon".
+  await page.click('.view-tabs__link[data-view="all"]');
+  check(!(await page.eval(`document.getElementById('panel-all').hidden`)) && (await page.eval('location.hash')) === '', `${tag} Reiter "Alle Pokémon"`);
 }
 
 // ---------- Pokémon-Seite ----------
@@ -214,8 +294,7 @@ async function levelTable(page) {
 async function testDetail(page, vp) {
   const tag = `[${vp.label}]`;
   // Aus der Liste öffnen, zurück zur gemerkten Stelle.
-  await page.goto(url('index.html'));
-  await page.type('#search', 'mewtu');
+  await page.goto(url('index.html', '#rangliste=raid-psychic'));
   await page.click('a.poke-tile[data-pokemon="mewtwo"]');
   let s = await detailState(page);
   check(s.title === 'Mewtu' && s.tab === 'tab-bewertung', `${tag} Mewtu öffnen: ${s.title}`);
@@ -282,15 +361,19 @@ async function testDetail(page, vp) {
   const back = await page.eval(`({ hidden: document.getElementById('view-list').hidden, focus: document.activeElement?.dataset?.pokemon ?? null })`);
   check(!back.hidden && back.focus === 'mewtwo', `${tag} Zurück: Fokus ${back.focus}`);
 
-  // Azumarill: 15/15/15 ist für die Superliga schwach, das Superliga-Ideal ist IV-Rang 1.
-  await page.goto(url('index.html', '#pokemon=azumarill'));
+  // Mamutel: Angriff 0 ist für Raids zu schwach, Vorlage "Glücks-Minimum" setzt 12/12/12.
+  await page.goto(url('index.html', '#pokemon=mamoswine'));
+  await selectValue(page, '#iv-atk', 0);
   s = await detailState(page);
-  check(/Superliga/.test(s.my) && /schlecht/.test(s.my), `${tag} Azumarill 100 %: ${s.my}`);
-  await page.click('#preset-great');
-  const gl = await page.eval(`[...document.querySelectorAll('#league-great .facts dd')].map((d) => d.textContent)`);
-  check(gl[2]?.startsWith('1 /') && num(gl[1]) <= 1500, `${tag} Azumarill Superliga-Ideal: ${gl.join(' | ')}`);
+  check(/Angriff ist zu niedrig/.test(s.my), `${tag} Mamutel 0/15/15: ${s.my}`);
+  await page.click('#preset-lucky');
   s = await detailState(page);
-  check(!/schlecht/.test(s.my), `${tag} Azumarill Ideal-IVs: ${s.my}`);
+  check(/12\/12\/12/.test(s.ivTotal) && /80\s*%/.test(s.ivTotal) && !/zu niedrig/.test(s.my), `${tag} Glücks-Minimum: ${s.ivTotal} · ${s.my}`);
+  // Crypto aus: Platz ohne Crypto.
+  await page.click('#crypto-toggle');
+  const rankNS = byKey.get('mamoswine').rating.raid.find((r) => r.type === 'ICE').rankNS;
+  check((await page.eval(`document.querySelector('#raid-rows li[data-type="ICE"] .rank-link').textContent`)) === `Platz ${rankNS} von ${byKey.get('mamoswine').rating.raid[0].ofNS} ohne Crypto`, `${tag} Mamutel ohne Crypto: Platz`);
+  await page.click('#crypto-toggle');
 
   // Mega-Starmie: Super-Max-Level, Zusatz-Attacke, Werte 2 Level höher.
   await page.goto(url('index.html', '#pokemon=starmie-mega'));
@@ -344,6 +427,12 @@ async function testAllPages(page, vp) {
         if (!target.querySelector('#findings') || !target.querySelector('#detail-title').textContent) errors.push(key + ': leer');
       } catch (err) { errors.push(key + ': ' + err.message); }
     }
+    // Dasselbe ohne Crypto (jede zehnte Seite).
+    Power.setCrypto(false);
+    for (const key of keys.filter((_, i) => i % 10 === 0)) {
+      try { Detail.render(key, target); } catch (err) { errors.push(key + ' (ohne Crypto): ' + err.message); }
+    }
+    Power.setCrypto(true);
     return { count: keys.length, errors: errors.slice(0, 20), overflow: overflow.slice(0, 20) };
   })()`);
   check(!result.errors.length, `[${vp.label}] Fehler auf Pokémon-Seiten: ${result.errors.join('; ')}`);
@@ -363,6 +452,7 @@ for (const vp of VIEWPORTS) {
   const page = await launchBrowser(vp);
   try {
     await testStart(page, vp);
+    await testBrowse(page, vp);
     await testDetail(page, vp);
     await testAllPages(page, vp);
     await testLegal(page, vp);

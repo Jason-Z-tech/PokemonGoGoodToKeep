@@ -23,6 +23,28 @@ const Power = (() => {
 
   const CLASSES = { legendary: 'Legendär', mythical: 'Mysteriös', ultrabeast: 'Ultrabestie' };
 
+  // ---------- Einstellung "Crypto-Pokémon" (gilt für alle Ansichten) ----------
+
+  // An: Crypto-Pokémon zählen mit (Listen, Plätze, Bewertungen). Aus: Sie fehlen in Listen und Ranglisten, und
+  // Plätze und Bewertungen sind ohne sie gerechnet (Daten-Skript: *NS-Felder).
+  const settings = { crypto: true };
+  const listeners = [];
+  const onSettingsChange = (fn) => listeners.push(fn);
+  function setCrypto(on) {
+    if (settings.crypto === on) return;
+    settings.crypto = on;
+    for (const fn of listeners) fn(settings);
+  }
+  const visible = (p) => settings.crypto || !p.shadow;
+  const gradeOf = (p) => (settings.crypto ? p.rating.grade : p.rating.gradeNS);
+  const evolveOf = (p) => (settings.crypto ? p.rating.evolve : p.rating.evolveNS) ?? null;
+  // Werte eines Raid-Eintrags (ein Angriffstyp) im aktuellen Modus.
+  const raidView = (x) => (settings.crypto || !x
+    ? x
+    : { ...x, rank: x.rankNS, of: x.ofNS, ratio: x.ratioNS, grade: x.gradeNS, plainGrade: x.plainGradeNS });
+  // Raid-Einträge eines Pokémon im aktuellen Modus, stärkster zuerst.
+  const raidList = (p) => (p.rating.raid ?? []).map(raidView).sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
+
   // ---------- DOM ----------
 
   function el(tag, props = {}, children = []) {
@@ -57,32 +79,28 @@ const Power = (() => {
 
   // Gesamturteil eines Pokémon: Stufe, oder "Erst entwickeln", wenn eine Entwicklung deutlich mehr taugt.
   function verdictOf(p) {
-    if (p.rating.evolve) return { ...EVOLVE, grade: p.rating.grade, target: byKey.get(p.rating.evolve.key) };
-    return { ...GRADES[p.rating.grade], grade: p.rating.grade };
+    const evolve = evolveOf(p);
+    if (evolve) return { ...EVOLVE, grade: gradeOf(p), target: byKey.get(evolve.key) };
+    return { ...GRADES[gradeOf(p)], grade: gradeOf(p) };
   }
-
-  const league = (id) => data.rules.leagues.find((l) => l.id === id);
 
   // Stärkster Grund für die Bewertung – als Kurztext für Listen ("Raids: Platz 3 Feuer").
   function shortReason(p) {
-    const r = p.rating;
-    if (r.evolve) return `Zu ${byKey.get(r.evolve.key).name} entwickeln`;
+    const evolve = evolveOf(p);
+    if (evolve) return `Zu ${byKey.get(evolve.key).name} entwickeln`;
+    const raid = raidList(p)[0];
     const reasons = [];
-    const raid = r.raid?.[0];
-    if (raid?.grade) reasons.push({ grade: raid.grade, rank: raid.rank, text: `Raids: Platz ${raid.rank} ${data.types[raid.type]}${p.variant !== 'normal' ? ' (Mega)' : ''}` });
-    for (const l of data.rules.leagues) {
-      const x = r[l.id];
-      if (x?.grade) reasons.push({ grade: x.grade, rank: x.rank, text: `${l.name}: Platz ${x.rank}` });
-    }
-    if (r.mega && r.mega.grade >= (reasons[0]?.grade ?? 0)) {
-      const mega = byKey.get(r.mega.key);
+    if (raid?.grade) reasons.push({ grade: raid.grade, text: `Raids: Platz ${raid.rank} ${data.types[raid.type]}${p.variant !== 'normal' ? ' (Megas)' : ''}` });
+    if (p.rating.mega && p.rating.mega.grade > (raid?.grade ?? 0)) {
+      const mega = byKey.get(p.rating.mega.key);
       const mr = mega.rating.raid?.[0];
-      reasons.push({ grade: r.mega.grade, rank: mr?.rank ?? 99, text: `Als ${mega.name}${mr ? `: Platz ${mr.rank} ${data.types[mr.type]}` : ''}` });
+      reasons.push({ grade: p.rating.mega.grade, text: `Als ${mega.name}${mr ? `: Platz ${mr.rank} ${data.types[mr.type]}` : ''}` });
     }
-    reasons.sort((a, b) => b.grade - a.grade || a.rank - b.rank);
+    reasons.sort((a, b) => b.grade - a.grade);
     if (reasons.length) return reasons[0].text;
-    if (r.max?.grade >= 2) return `Nur als Dynamax stark (Max-Kämpfe)`;
-    return p.variant !== 'normal' ? 'Mega-Bonus nutzbar, als Angreifer schwach' : 'In keinem Einsatz vorne';
+    if (p.rating.max?.grade >= 2) return 'Nur als Dynamax stark (Max-Kämpfe)';
+    if (p.variant !== 'normal') return 'Mega-Bonus nutzbar, als Angreifer schwach';
+    return raid ? `Raids: Platz ${raid.rank} ${data.types[raid.type]} – zu weit hinten` : 'Kein Raid-Angreifer';
   }
 
   // ---------- Bausteine ----------
@@ -163,7 +181,7 @@ const Power = (() => {
     target.replaceChildren(
       'Quellen: Spieldaten von ', link(gameMaster),
       gameMasterDate ? ` (Stand ${formatDate(gameMasterDate)})` : '',
-      ', deutsche Namen aus den Spieltexten (', link(texts), '), Liga-Ranglisten und erschienene Pokémon von ', link(pvpoke),
+      ', deutsche Namen aus den Spieltexten (', link(texts), '), erschienene Pokémon nach ', link(pvpoke),
       ', Dynamax-Pokémon vom ', link(dyna),
       ...(hasArtwork ? [', Bilder von ', link(images)] : []), '. ',
       `Seite erstellt am ${formatDate(data.generatedAt)}.`,
@@ -173,8 +191,9 @@ const Power = (() => {
 
   return {
     data, ready, TYPE_ORDER, GRADES, EVOLVE, CLASSES,
+    settings, setCrypto, onSettingsChange, visible, gradeOf, evolveOf, raidView, raidList,
     el, formatNumber, formatLevel, formatPercent, formatDate, slugOf, normalize, ivPercent,
-    verdictOf, shortReason, league,
+    verdictOf, shortReason,
     typeChip, typeDots, verdictBadge, gradeBadge, badges, eliteBadge, pokemonArt, meter, pokemonLink, renderSources,
     pokemon: (key) => byKey.get(key) ?? null,
     move: (id) => (data.moves[id] ? { id, ...data.moves[id] } : null),

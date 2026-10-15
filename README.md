@@ -2,29 +2,37 @@
 
 **Lohnt sich das Power-up?** Für jedes Pokémon in **Pokémon GO** – normale, regionale Formen, Legendäre,
 Mysteriöse, Ultrabestien, **Mega-Entwicklungen und Protomorphosen** sowie alle **Crypto-Pokémon** – zeigt die
-Seite, wofür es taugt, seine Werte auf jedem Level und was das Hochleveln kostet. Mit eigenen IVs.
+Seite, wie gut es in **Raids und Arenen** ist, seine Werte auf jedem Level und was das Hochleveln kostet. Mit eigenen IVs.
 Raid-Konter stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass/), Max-Kämpfe im
-[Dyna-Kompass](https://jason-z-tech.github.io/dyna-kompass/).
+[Dyna-Kompass](https://jason-z-tech.github.io/dyna-kompass/). Trainerkämpfe (GO-Kampfliga) bewertet die Seite bewusst nicht.
 
-- **Startseite:** alle Pokémon mit Urteil – „Spitze“, „Lohnt sich“, „Nische“, „Lohnt nicht“ oder „Entwickeln“
-  (Vorstufe: erst entwickeln, dann leveln) – und dem wichtigsten Grund („Raids: Platz 3 Feuer“, „Superliga: Platz 12“).
-  Suche (deutsch, englisch, Pokédex-Nummer), Filter nach Bewertung, Einsatz (Raids & Arenen, Superliga, Hyperliga,
-  Meisterliga, Max-Kämpfe), Typ und Art (Normal, Legendär & Mysteriös, Mega & Proto, Crypto). Mit Einsatz „Raids“
-  und einem Angriffstyp wird die Liste zur Rangliste der besten Angreifer dieses Typs (Megas getrennt).
+- **Oben auf jeder Seite:** die **Suche** (deutsch, englisch oder Pokédex-Nummer) mit Vorschlägen – Pfeiltasten und
+  Enter oder antippen öffnet das Pokémon, „Alle Treffer“ zeigt sie in der Liste – und der Schalter
+  **„Crypto-Pokémon“**: An zählen Crypto-Pokémon überall mit; aus fehlen sie in allen Listen, und Plätze und
+  Bewertungen sind ohne sie gerechnet (ein normales Mamutel steht dann z. B. bei Eis auf Platz 5 statt 8 und ist
+  „Spitze“ statt „Lohnt sich“).
+- **Drei Ansichten** (Reiter über der Liste):
+  - **Alle Pokémon:** jedes Pokémon mit Urteil – „Spitze“, „Lohnt sich“, „Nische“, „Lohnt nicht“ oder „Entwickeln“
+    (Vorstufe: erst entwickeln, dann leveln) – und dem wichtigsten Grund („Raids: Platz 3 Feuer“). Filter nach
+    Bewertung, Einsatz (Raids & Arenen, Max-Kämpfe), Typ und Art (Normal, Legendär & Mysteriös, Mega & Proto, nur
+    Crypto). Mit Einsatz „Raids“ und einem Angriffstyp wird die Liste zur vollständigen Rangliste dieses Typs.
+  - **Nach Typ:** 18 Typ-Knöpfe. Je Typ: wogegen er stark ist und wogegen seine Pokémon schwach sind, die 10 besten
+    Raid-Angreifer, die 3 besten Megas, die 5 besten Dynamax-Pokémon und alle Pokémon dieses Typs (beste zuerst).
+  - **Top-Rankings:** die besten Raid-Angreifer über alle Typen (jeweils in ihrem besten Typ), die Top 5 je Typ,
+    die Top 3 Megas je Typ und die Top 5 je Typ in Max-Kämpfen.
 - **Pokémon-Seite:** oben das Urteil mit Begründung und Links zu Crypto-, Mega- und Vorstufen/Entwicklungen.
-  Darunter **„Dein Pokémon“**: IVs (standardmäßig 15/15/15 = 100 %, Vorlagen für Superliga- und Hyperliga-Ideal),
-  „Level jetzt“ (oder WP eingeben – die Seite findet das Level), Glücks-Pokémon, Erlöst, Bester Kumpel und bei
-  Megas das Mega-Level (Basis, High, Max, Super-Max). Das Urteil „Mit deinen IVs“ ändert sich mit den Eingaben.
-  Drei Reiter:
+  Darunter **„Dein Pokémon“**: IVs (standardmäßig 15/15/15 = 100 %, Vorlagen für Glücks-Minimum 12/12/12 und
+  Raid-Minimum 10/10/10), „Level jetzt“ (oder WP eingeben – die Seite findet das Level), Glücks-Pokémon, Erlöst,
+  Bester Kumpel und bei Megas das Mega-Level (Basis, High, Max, Super-Max). Das Urteil „Mit deinen IVs“ ändert sich
+  mit den Eingaben. Drei Reiter:
   - **Bewertung:** Raids & Arenen (Platz je Angriffstyp, beste Attacken, DPS/TDO auf Level 40 und 50 mit deinen IVs,
-    Hinweis auf nötige Elite-Attacken), Kampfliga (Platz bei PvPoke, empfohlene Attacken, Level/WP/IV-Rang deiner IVs
-    unter der WP-Grenze, Kosten bis dorthin), Mega/Proto (Boni je Mega-Level, Zusatz-Lade-Attacke „+“,
-    Super-Max-WP-Boost), Max-Kämpfe (nur Dynamax-Exemplare) und Besonderheiten (Formwechsel wie König des Schwertes,
-    Fusionen wie Schwarzes Kyurem, Erlösen, zweite Lade-Attacke, Apex-Attacken, Kumpel-Distanz).
+    Hinweis auf nötige Elite-Attacken), Mega/Proto (Boni je Mega-Level, Zusatz-Lade-Attacke „+“, Super-Max-WP-Boost),
+    Max-Kämpfe (nur Dynamax-Exemplare) und Besonderheiten (Formwechsel wie König des Schwertes, Fusionen wie Schwarzes
+    Kyurem, Erlösen, zweite Lade-Attacke, Apex-Attacken, Kumpel-Distanz).
   - **Werte & Kosten:** WP, Angriff, Verteidigung und KP auf jedem Level von 1 bis 50 (auf Wunsch mit halben Leveln,
     mit Bester-Kumpel- oder Super-Max-Boost) und die aufsummierten Kosten an Sternenstaub, Bonbons und Bonbons XL ab dem
     aktuellen Level.
-  - **Attacken:** alle Sofort- und Lade-Attacken mit Werten für Raids und für die Kampfliga.
+  - **Attacken:** alle Sofort- und Lade-Attacken mit ihren Werten für Raids und Arenen.
 
 **Online:** https://jason-z-tech.github.io/PokemonGoGoodToKeep/
 
@@ -32,8 +40,8 @@ Raid-Konter stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass
 
 Lokal: `index.html` doppelklicken. Die Seite braucht keinen Server und keine Installation.
 Direktlinks: `index.html#pokemon=mamoswine`, `index.html#pokemon=crypto-mamoswine`, `index.html#pokemon=starmie-mega`,
-Ranglisten: `index.html#rangliste=raid-fire` (Typ englisch), `#rangliste=raid-fire-mega`, `#rangliste=great`,
-`#rangliste=ultra`, `#rangliste=master`.
+Ansichten: `#typ` (Typ wählen), `#typ=fire` (Typ englisch), `#top=gesamt`, `#top=raid`, `#top=mega`, `#top=max`,
+vollständige Ranglisten in „Alle Pokémon“: `#rangliste=raid-fire`, `#rangliste=raid-fire-mega`, `#rangliste=max-fire`.
 
 ## Veröffentlichen (GitHub Pages)
 
@@ -42,7 +50,7 @@ GitHub Pages direkt aus dem Branch `main` ausgeliefert (einmalig einschalten: *S
 branch → main / (root)*). Änderungen gehen online, sobald sie committet und gepusht sind:
 
 ```powershell
-node scripts/build-data.mjs --refresh   # neue Spieldaten und Ranglisten
+node scripts/build-data.mjs --refresh   # neue Spieldaten
 node tests/e2e.mjs                      # alles durchklicken
 git add -A
 git commit -m "Daten aktualisiert"
@@ -52,7 +60,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html` und `datenschutz.html` den Zusatz
-`?v=2026-10-15-1` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
+`?v=2026-10-15-2` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
 Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und
 neue Skripte mischen.
 
@@ -68,14 +76,17 @@ node tests/e2e.mjs --url https://jason-z-tech.github.io/PokemonGoGoodToKeep/   #
 ```
 
 Startet ein unsichtbares Chrome (oder Edge) und klickt die Seite mit echten Mausklicks durch – auf Desktop-, Tablet-
-und Handy-Breite: Liste, „Weitere anzeigen“, Suche (deutsch, englisch, Nummer), jeder Bewertungs-Filter (Anzahl wie in
-den Daten), die Ranglisten der drei Ligen und der Raid-Typen (Reihenfolge wie in den Daten), Filter zurücksetzen,
-Pokémon öffnen und zurück (Fokus auf der Kachel), IV-Eingabe, Vorlagen, halbe Level, Bester Kumpel, Level jetzt,
-WP-Eingabe, Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher), Reiter per Tastatur und die
+und Handy-Breite: Liste, „Weitere anzeigen“, Suche oben (deutsch, englisch, Nummer; Vorschläge, Escape, Pfeiltasten
+und Enter öffnen ein Pokémon), jeder Bewertungs-Filter (Anzahl wie in den Daten), die Raid-Ranglisten je Typ
+(Reihenfolge und Plätze wie in den Daten, Megas getrennt), der Crypto-Schalter (ohne Crypto: keine Crypto-Pokémon,
+Plätze neu gezählt, Bewertungen ohne sie), Filter zurücksetzen, die Ansicht „Nach Typ“ (Top 10, Megas, nur Pokémon
+des Typs, zurück mit Fokus auf dem Eintrag), „Top-Rankings“ (Sortierung, Karten je Typ wie die Ranglisten),
+Pokémon öffnen und zurück, IV-Eingabe, Vorlagen, halbe Level, Bester Kumpel, Level jetzt, WP-Eingabe,
+Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher), Reiter per Tastatur und die
 Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
 Level 40 und 4724 auf Level 50, 270 000 Sternenstaub und 304 Bonbons bis Level 40, 296 Bonbons XL bis 50, Crypto 360,
 Erlöst 272). Auf dem Desktop wird jede Pokémon-Seite mit allen drei Reitern gezeichnet (auf Tablet und Handy jede
-siebte bzw. fünfte) – ohne Fehler und ohne seitlichen Überlauf.
+siebte bzw. fünfte), zusätzlich jede zehnte ohne Crypto – ohne Fehler und ohne seitlichen Überlauf.
 Benötigt Node.js ab Version 22 und Chrome oder Edge.
 
 ## Daten aktualisieren
@@ -87,12 +98,13 @@ node scripts/build-data.mjs --refresh
 Das Skript
 1. lädt die aktuellen Spieldaten (Game Master von [PokeMiners](https://github.com/PokeMiners/game_masters)), die
    offiziellen deutschen und englischen Spieltexte ([holoholo-text](https://github.com/sora10pls/holoholo-text)),
-   die Liga-Ranglisten und Release-Angaben von [PvPoke](https://github.com/pvpoke/pvpoke) und die Dynamax-Daten des
+   die Release-Angaben von [PvPoke](https://github.com/pvpoke/pvpoke) und die Dynamax-Daten des
    [Dyna-Kompass](https://github.com/Jason-Z-tech/dyna-kompass),
 2. nimmt nur Pokémon auf, die im Spiel erschienen sind (Angaben von PvPoke, ergänzt um `RELEASE_FIXES` für Pokémon,
    die im Trainerkampf nicht antreten können – Ditto, Ninjatom, Cosmog …),
 3. stellt Crypto-Versionen, Mega-Entwicklungen und Protomorphosen, Entwicklungen und Formwechsel zusammen,
-4. rechnet die Raid-Ranglisten je Typ (mit `js/calc.js`, wie die Seite) und vergibt die Bewertungen,
+4. rechnet die Raid-Ranglisten je Typ (mit `js/calc.js`, wie die Seite) und vergibt die Bewertungen – einmal mit und
+   einmal ohne Crypto-Pokémon,
 5. lädt die Artworks von [PokeAPI](https://pokeapi.co) und wandelt sie mit Chrome/Edge in kleine **WebP**-Dateien um,
 6. schreibt alles nach `data/pokemon-data.js`.
 
@@ -102,7 +114,7 @@ Am Ende listet das Skript Hinweise auf, z. B. ein Dynamax-Pokémon, das es keine
 
 ## So wird bewertet
 
-Pro Pokémon gibt es eine Stufe je Einsatz; das Urteil ist die beste davon.
+Das Urteil richtet sich nach **Raids und Arenen** (bester Angriffstyp, bei normalen Pokémon auch ihre Mega-Entwicklung).
 
 - **Raids & Arenen:** Für jeden Angriffstyp eine Rangliste aller Pokémon (normal und Crypto; Mega-Entwicklungen
   getrennt, weil pro Person nur eine aktiv ist) gegen einen 5-Sterne-Boss (Verteidigung 200), der gegen diesen Typ
@@ -111,11 +123,10 @@ Pro Pokémon gibt es eine Stufe je Einsatz; das Urteil ist die beste davon.
   y = 900 / Verteidigung), Wertung (DPS³ × TDO)<sup>¼</sup>. **Spitze:** die fünf Besten des Typs; **Lohnt sich:**
   mindestens 90 % der Wertung des Fünftbesten; **Nische:** mindestens 80 %. Megas: Spitze ab 95 % der besten Mega,
   Lohnt sich ab 85 %, Nische ab 75 %. Braucht ein Pokémon dafür eine Elite-Attacke, sagt die Seite, wie es ohne steht.
-- **Kampfliga:** Platz in der Gesamt-Rangliste von PvPoke: Top 25 Spitze, Top 75 Lohnt sich, Top 200 Nische.
-  Für deine IVs rechnet die Seite selbst: höchstes Level unter der WP-Grenze (bis Level 50, mit Bester Kumpel 51),
-  Stat-Produkt (Angriff × Verteidigung × KP) und Rang unter allen 4096 IV-Kombinationen.
-- **Mit deinen IVs:** In den Ligen zählen IVs viel – unter 98 % des besten Stat-Produkts sinkt die Stufe um eine,
-  unter 95 % um zwei. In Raids zählen sie wenig – erst unter 94 % der Wertung von 15/15/15 sinkt sie um eine.
+- **Ohne Crypto:** Dieselben Ranglisten ohne Crypto-Pokémon, mit dem Fünftbesten ohne Crypto als Vergleich – Plätze
+  und Stufen (Felder `rankNS`, `gradeNS`, `evolveNS` in den Daten) gelten, wenn der Schalter aus ist.
+- **Mit deinen IVs:** In Raids zählen IVs wenig – erst unter 94 % der Wertung von 15/15/15 sinkt die Stufe um eine
+  („Der Angriff ist zu niedrig“).
 - **Mega & Proto:** Eine Mega zählt für ihre normale Form mit (wer die normale Form hochlevelt, levelt die Mega mit).
   Gerechnet wird mit dem höchsten Mega-Level: Zusatz-Lade-Attacke „+“ mit ×1,0 / 1,1 / 1,2 / 1,3 (Basis bis
   Super-Max) und auf dem Super-Max-Level 2 Level mehr (`selfCpBoostAdditionalLevel` in den Spieldaten). Boni je Mega-Level
@@ -139,13 +150,15 @@ eingerechnet.
 ## Aufbau
 
 ```
-index.html                 Startseite (Liste, #rangliste=…) und Pokémon-Seite (#pokemon=<schlüssel>)
+index.html                 Ansichten Alle Pokémon / Nach Typ / Top-Rankings und Pokémon-Seite (#pokemon=<schlüssel>)
 datenschutz.html           Datenschutzerklärung
 assets/favicon.svg         Seiten-Icon (eigenes Design: Power-up-Pfeil)
 css/style.css              Design
-js/calc.js                 Rechnung (Werte, Kosten, Raid-DPS, IV-Rang) – auch vom Daten-Skript genutzt
-js/shared.js               gemeinsame Bausteine (DOM-Helfer, Bewertungen, Formatierung)
-js/overview.js             Startseite: Liste, Suche, Filter, Ranglisten
+js/calc.js                 Rechnung (Werte, Kosten, Raid-DPS) – auch vom Daten-Skript genutzt
+js/shared.js               gemeinsame Bausteine (DOM-Helfer, Bewertungen, Crypto-Schalter, Formatierung)
+js/search.js               Suche oben mit Vorschlägen
+js/overview.js             Ansicht "Alle Pokémon": Liste, Filter, vollständige Ranglisten
+js/browse.js               Ansichten "Nach Typ" und "Top-Rankings"
 js/detail.js               Pokémon-Seite: Urteil, Dein Pokémon, Reiter Bewertung / Werte & Kosten / Attacken
 js/app.js                  Start und Navigation (Zurück-Link, Browser-Verlauf, Fokus)
 data/pokemon-data.js       erzeugte Daten (nicht von Hand bearbeiten)
@@ -164,7 +177,7 @@ _headers                   Sicherheits-Header, falls die Seite später auf Netli
 - **Schriften:** Chakra Petch und Manrope, SIL Open Font License (siehe `assets/fonts/OFL-*.txt`).
 - **Bilder:** Offizielle Artworks über PokeAPI. Sie sind urheberrechtlich geschützt (Nintendo / Creatures / GAME FREAK)
   und werden hier ohne Lizenz in einem nicht-kommerziellen Fanprojekt verwendet – wie auf vielen Pokémon-GO-Infoseiten.
-- **Liga-Ranglisten:** [PvPoke](https://pvpoke.com) (Open Source), mit Quellenangabe.
+- **Erschienene Pokémon:** Angaben von [PvPoke](https://github.com/pvpoke/pvpoke) (Open Source), mit Quellenangabe.
 - Inoffizielles, nicht-kommerzielles Fanprojekt ohne Verbindung zu Nintendo, The Pokémon Company oder Scopely.
   Pokémon, Pokémon GO und die Namen der Pokémon sind Marken von Nintendo. © Pokémon/Nintendo/Creatures/GAME FREAK.
 

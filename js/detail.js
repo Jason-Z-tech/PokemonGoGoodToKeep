@@ -28,7 +28,6 @@ const Detail = (() => {
   let container = null;
 
   const raidLevels = () => [40, 50];
-  const maxLevel = () => data.rules.maxLevel + (state.buddy ? data.rules.buddyBoostLevels : 0);
   const isMega = () => p.variant !== 'normal';
   const megaBoost = () => (isMega() ? data.rules.megaLevels[(state.megaLevel ?? 1) - 1].selfCpBoost : 0);
   const costOptions = () => ({ lucky: state.lucky && canBeLucky(), purified: state.purified && canBePurified() });
@@ -75,13 +74,6 @@ const Detail = (() => {
     return parts.join(', ');
   }
 
-  // Kosten vom aktuellen Level bis zu einem Ziel (Bester Kumpel ist ein Boost, kein Power-up).
-  function costTo(target) {
-    const to = Math.min(target - (state.buddy ? data.rules.buddyBoostLevels : 0), data.rules.maxLevel);
-    if (to <= state.level) return null;
-    return PowerCalc.powerUpCost(data, ownerOf(), state.level, to, costOptions());
-  }
-
   // ---------- Kopf ----------
 
   function header() {
@@ -108,14 +100,15 @@ const Detail = (() => {
     const r = p.rating;
     if (v.id === 'evolve') {
       const t = v.target;
-      return `${p.name} selbst taugt wenig – entwickle es zuerst zu ${t.name} (${Power.GRADES[t.rating.grade].long.toLowerCase()}). Power-ups vor der Entwicklung bleiben erhalten, aber hochleveln lohnt sich erst danach.`;
+      return `${p.name} selbst taugt wenig – entwickle es zuerst zu ${t.name} (Bewertung: ${Power.GRADES[Power.gradeOf(t)].label}). Power-ups vor der Entwicklung bleiben erhalten, aber hochleveln lohnt sich erst danach.`;
     }
     const uses = [];
-    const bestRaid = (r.raid ?? []).filter((x) => x.grade === Math.max(...r.raid.map((y) => y.grade)) && x.grade > 0).slice(0, 2);
-    if (bestRaid.length) uses.push(`Raids als ${bestRaid.map((x) => `${data.types[x.type]}-Angreifer (Platz ${x.rank})`).join(' und ')}`);
-    for (const l of data.rules.leagues) if (r[l.id]?.grade >= Math.max(1, r.grade - 1)) uses.push(`${l.name} (Platz ${r[l.id].rank})`);
-    if (r.mega) uses.push(`als ${Power.pokemon(r.mega.key).name}`);
-    const text = uses.length ? `Stark für: ${uses.join(', ')}.` : 'In keinem Einsatz weit vorne – nur für Sammlung, Kumpel-Bonbons oder zum Tauschen.';
+    const raids = Power.raidList(p);
+    const top = Math.max(0, ...raids.map((x) => x.grade));
+    const bestRaid = raids.filter((x) => x.grade === top && x.grade > 0).slice(0, 2);
+    if (bestRaid.length) uses.push(`Raids und Arenen als ${bestRaid.map((x) => `${data.types[x.type]}-Angreifer (Platz ${x.rank}${Power.settings.crypto ? '' : ' ohne Crypto'})`).join(' und ')}`);
+    if (r.mega && r.mega.grade >= Math.max(1, top)) uses.push(`als ${Power.pokemon(r.mega.key).name}`);
+    const text = uses.length ? `Stark für: ${uses.join(', ')}.` : 'Als Raid-Angreifer zu schwach – nur für Sammlung, Kumpel-Bonbons oder zum Tauschen.';
     const max = r.max?.grade >= 2 ? ' Als Dynamax-Pokémon zusätzlich gut in Max-Kämpfen.' : '';
     return `${text}${max}`;
   }
@@ -210,11 +203,6 @@ const Detail = (() => {
   }
 
   function controls() {
-    const owner = ownerOf();
-    const great = PowerCalc.ivTable(data, owner, 1500, data.rules.maxLevel)[0];
-    const ultra = PowerCalc.ivTable(data, owner, 2500, data.rules.maxLevel)[0];
-    const reachesGreat = PowerCalc.maxCp(data, owner, data.rules.maxLevel) > 1500;
-    const reachesUltra = PowerCalc.maxCp(data, owner, data.rules.maxLevel) > 2500;
     const level = el('label', { class: 'select select--compact' }, [
       el('span', { class: 'control-label', text: 'Level jetzt' }),
       el('select', {
@@ -233,9 +221,8 @@ const Detail = (() => {
       myVerdict(),
       el('div', { class: 'mine__presets', role: 'group', 'aria-label': 'IV-Vorlagen' }, [
         presetButton('full', '100 % (15/15/15)', FULL),
-        reachesGreat ? presetButton('great', `Superliga-Ideal (${great.iv.atk}/${great.iv.def}/${great.iv.sta})`, great.iv, 'Bestes Stat-Produkt unter 1500 WP') : null,
-        reachesUltra ? presetButton('ultra', `Hyperliga-Ideal (${ultra.iv.atk}/${ultra.iv.def}/${ultra.iv.sta})`, ultra.iv, 'Bestes Stat-Produkt unter 2500 WP') : null,
-        presetButton('raid', 'Raid-Minimum (10/10/10)', { atk: 10, def: 10, sta: 10 }),
+        presetButton('lucky', 'Glücks-Minimum (12/12/12)', { atk: 12, def: 12, sta: 12 }, 'Glücks-Pokémon aus einem Tausch haben mindestens 12/12/12'),
+        presetButton('raid', 'Raid-Minimum (10/10/10)', { atk: 10, def: 10, sta: 10 }, 'Pokémon aus Raids, Eiern und Forschung haben mindestens 10/10/10'),
       ]),
       el('div', { class: 'mine__row' }, [level, cpInput()]),
       cpFeedback(),
@@ -290,23 +277,25 @@ const Detail = (() => {
   function findings() {
     const r = p.rating;
     const items = [];
+    const noCrypto = Power.settings.crypto ? '' : ' (ohne Crypto)';
     const li = (grade, children) => el('li', { class: 'finding' }, [grade === null ? Power.verdictBadge(p) : Power.gradeBadge(grade), el('span', {}, children)]);
-    if (r.evolve) {
-      const t = Power.pokemon(r.evolve.key);
+    const evolve = Power.evolveOf(p);
+    if (evolve) {
+      const t = Power.pokemon(evolve.key);
       const direct = (p.evolutions ?? []).find((e) => e.key === t.key);
       items.push(el('li', { class: 'finding' }, [
         el('span', { class: 'verdict verdict--evolve verdict--small', text: 'Entwickeln' }),
         el('span', {}, [
           'Entwickle es zu ', el('a', { href: `#pokemon=${t.key}`, data: { pokemon: t.key }, text: t.name }),
           direct ? ` (${direct.candy} Bonbons${direct.conditions.length ? `, ${direct.conditions.join(', ')}` : ''})` : ' (über eine Zwischenstufe)',
-          ` – dort: ${Power.GRADES[t.rating.grade].long}. IVs bleiben beim Entwickeln gleich.`,
+          ` – dort: ${Power.GRADES[Power.gradeOf(t)].long}. IVs bleiben beim Entwickeln gleich.`,
         ]),
       ]));
     }
-    for (const x of r.raid ?? []) {
+    for (const x of Power.raidList(p)) {
       if (!x.grade && items.length) continue;
       items.push(li(x.grade, [
-        `Raids: Platz ${x.rank} von ${x.of} ${isMega() ? `${data.types[x.type]}-Megas` : `${data.types[x.type]}-Angreifern`} mit ${moveName(x.fast)} + ${moveName(x.charged)}.`,
+        `Raids: Platz ${x.rank} von ${x.of} ${isMega() ? `${data.types[x.type]}-Megas` : `${data.types[x.type]}-Angreifern${noCrypto}`} mit ${moveName(x.fast)} + ${moveName(x.charged)}.`,
         x.plainGrade !== undefined ? ` Ohne Elite-Attacke nur „${Power.GRADES[x.plainGrade].label}“.` : '',
       ]));
     }
@@ -319,12 +308,8 @@ const Detail = (() => {
         ' Wer die normale Form hochlevelt, levelt die Mega mit.',
       ]));
     }
-    for (const l of data.rules.leagues) {
-      const x = r[l.id];
-      if (x) items.push(li(x.grade, [`${l.name}: Platz ${formatNumber(x.rank)} von ${formatNumber(x.of)} (PvPoke-Wertung ${formatNumber(x.score, 1)}).`]));
-    }
     if (r.max) items.push(li(r.max.grade, [`Max-Kämpfe (nur als ${r.max.kinds.map((k) => (k === 'gigantamax' ? 'Gigadynamax' : 'Dynamax')).join(' oder ')}): ${maxText(r.max)}`]));
-    if (!items.length) items.push(li(0, ['Kein Einsatz, in dem es weit vorne steht.']));
+    if (!items.length) items.push(li(0, ['Keine Lade-Attacke – als Angreifer ungeeignet.']));
     return el('ul', { class: 'findings', id: 'findings' }, items);
   }
 
@@ -336,8 +321,8 @@ const Detail = (() => {
     return `${parts.join(', ')}.`;
   }
 
-  // Wie gut passen die eingegebenen IVs – je Einsatz. quality: 2 sehr gut, 1 brauchbar, 0 schwach.
-  // adjusted: die Stufe des Einsatzes mit diesen IVs (in den Ligen zählen IVs viel, in Raids wenig).
+  // Wie gut passen die eingegebenen IVs? quality: 2 sehr gut, 1 brauchbar, 0 schwach.
+  // adjusted: die Stufe mit diesen IVs (in Raids zählen IVs wenig – erst unter 94 % der Wertung eine Stufe weniger).
   function raidQuality(pokemon, type, megaLevel = null) {
     const stats = (iv) => PowerCalc.pveStats(data, pokemon, { level: 40, iv, buddy: state.buddy, megaLevel });
     const opts = { elite: true, megaLevel };
@@ -349,9 +334,8 @@ const Detail = (() => {
   }
 
   function assessIvs() {
-    const owner = ownerOf();
     const rows = [];
-    const raid = p.rating.raid?.[0];
+    const raid = Power.raidList(p)[0];
     if (raid) {
       const q = raidQuality(p, raid.type, isMega() ? state.megaLevel : null);
       if (q) {
@@ -372,17 +356,6 @@ const Detail = (() => {
         });
       }
     }
-    for (const l of data.rules.leagues) {
-      if (!p.rating[l.id] || isMega()) continue;
-      const rank = PowerCalc.ivRank(data, owner, state.iv, l.cap ?? Infinity, maxLevel());
-      if (!rank) continue;
-      const quality = rank.percent >= 0.98 ? 2 : rank.percent >= 0.95 ? 1 : 0;
-      const grade = p.rating[l.id].grade;
-      rows.push({
-        id: l.id, label: l.name, grade, adjusted: Math.max(0, grade - (2 - quality)), quality,
-        value: `IV-Rang ${formatNumber(rank.rank)} von ${formatNumber(rank.of)} (${formatPercent(rank.percent, 1)} des besten Stat-Produkts)`,
-      });
-    }
     return rows;
   }
 
@@ -393,7 +366,7 @@ const Detail = (() => {
     if (!counted.length) {
       return el('p', { class: 'my-verdict', id: 'my-verdict' }, [
         el('span', { class: 'my-verdict__label', text: 'Mit deinen IVs:' }), Power.verdictBadge(p),
-        el('span', { class: 'my-verdict__text', text: p.rating.evolve ? 'Erst entwickeln – die IVs bleiben dabei gleich.' : 'Die IVs ändern daran nichts.' }),
+        el('span', { class: 'my-verdict__text', text: Power.evolveOf(p) ? 'Erst entwickeln – die IVs bleiben dabei gleich.' : 'Die IVs ändern daran nichts.' }),
       ]);
     }
     const best = Math.max(...counted.map((r) => r.adjusted));
@@ -401,8 +374,8 @@ const Detail = (() => {
     const weak = counted.filter((r) => r.grade >= 2 && r.adjusted < r.grade).map((r) => r.label);
     const parts = [];
     if (strong.length) parts.push(`am besten für ${strong.join(', ')}.`);
-    if (weak.length) parts.push(`Für ${weak.join(', ')} passen diese IVs schlecht – dort lohnt sich ein besseres Exemplar.`);
-    if (!strong.length && !weak.length) parts.push('Mit diesen IVs in keinem Einsatz vorne.');
+    if (weak.length) parts.push(`Der Angriff ist zu niedrig – für ${weak.join(', ')} lohnt sich ein besseres Exemplar.`);
+    if (!strong.length && !weak.length) parts.push('Mit diesen IVs als Angreifer zu schwach.');
     return el('p', { class: 'my-verdict', id: 'my-verdict', data: { grade: String(best) } }, [
       el('span', { class: 'my-verdict__label', text: 'Mit deinen IVs:' }), Power.gradeBadge(best),
       el('span', { class: 'my-verdict__text', text: parts.join(' ') }),
@@ -425,7 +398,7 @@ const Detail = (() => {
   const pveStats = (level, iv) => PowerCalc.pveStats(data, p, { level, iv, buddy: state.buddy, megaLevel: isMega() ? state.megaLevel : null });
 
   function raidCard() {
-    const list = p.rating.raid ?? [];
+    const list = Power.raidList(p);
     if (!list.length) {
       return card('Raids & Arenen', [line([p.charged.length + p.eliteCharged.length ? 'Seine Lade-Attacken taugen gegen keinen Raid-Boss.' : 'Keine Lade-Attacke – als Angreifer ungeeignet.'])], { id: 'raid-card' });
     }
@@ -442,7 +415,7 @@ const Detail = (() => {
         el('div', { class: 'raid-row__head' }, [
           Power.typeChip(x.type, true),
           Power.gradeBadge(x.grade),
-          el('a', { class: 'rank-link', href: `#rangliste=raid-${x.type.toLowerCase()}${isMega() ? '-mega' : ''}`, text: `Platz ${x.rank} von ${x.of}` }),
+          el('a', { class: 'rank-link', href: `#rangliste=raid-${x.type.toLowerCase()}${isMega() ? '-mega' : ''}`, text: `Platz ${x.rank} von ${x.of}${Power.settings.crypto || isMega() ? '' : ' ohne Crypto'}` }),
         ]),
         movesLine([x.fast, x.charged]),
         el('p', { class: 'raid-row__numbers' }, numbers),
@@ -455,51 +428,6 @@ const Detail = (() => {
       isMega() ? line([`Die Mega-Entwicklung verstärkt zusätzlich die Attacken aller anderen im Raid (+${Math.round((data.rules.megaLevels[0].otherTypeBoost - 1) * 100)} %, Attacken ihres Typs +${Math.round((data.rules.megaLevels[0].sameTypeBoost - 1) * 100)} %) – ihre eigenen nicht.`]) : null,
     ], { id: 'raid-card' });
   }
-
-  function leagueCard() {
-    const owner = ownerOf();
-    if (isMega()) return card('Kampfliga', [line(['Mega-Entwicklungen sind in der Superliga, Hyperliga und Meisterliga nicht erlaubt (nur in besonderen Cups). Für die Ligen zählt die normale Form.'])], { id: 'league-card' });
-    const max50 = PowerCalc.maxCp(data, owner, data.rules.maxLevel);
-    const rows = data.rules.leagues.map((l) => {
-      const x = p.rating[l.id];
-      const cap = l.cap ?? Infinity;
-      const rank = PowerCalc.ivRank(data, owner, state.iv, cap, maxLevel());
-      const cost = rank ? costTo(rank.level) : null;
-      const tooWeak = l.cap && max50 < l.cap * 0.93;
-      return el('div', { class: 'league', id: `league-${l.id}` }, [
-        el('div', { class: 'league__head' }, [
-          el('h4', { text: `${l.name}${l.cap ? ` (bis ${formatNumber(l.cap)} WP)` : ''}` }),
-          x ? Power.gradeBadge(x.grade) : el('span', { class: 'verdict verdict--no verdict--small', text: 'Nicht gelistet' }),
-        ]),
-        x ? el('p', { class: 'league__rank' }, [
-          el('a', { class: 'rank-link', href: `#rangliste=${l.id}`, text: `Platz ${formatNumber(x.rank)} von ${formatNumber(x.of)}` }),
-          ` · Wertung ${formatNumber(x.score, 1)}`,
-        ]) : el('p', { class: 'league__rank', text: 'Steht nicht in der Rangliste von PvPoke.' }),
-        x?.moves.length ? movesLine(x.moves) : null,
-        rank ? el('dl', { class: 'facts facts--league' }, [
-          fact('Level', `${formatLevel(rank.level)}${state.buddy && rank.level > data.rules.maxLevel ? ' (Kumpel)' : ''}`),
-          fact('WP', formatNumber(rank.cp)),
-          fact('IV-Rang', `${formatNumber(rank.rank)} / ${formatNumber(rank.of)}`),
-          fact('Stat-Produkt', formatPercent(rank.percent, 1)),
-        ]) : null,
-        rank && l.cap ? line([
-          `Beste IVs: ${rank.best.iv.atk}/${rank.best.iv.def}/${rank.best.iv.sta} (Level ${formatLevel(rank.best.level)}, ${formatNumber(rank.best.cp)} WP). `,
-          cost ? `Von Level ${formatLevel(state.level)} bis Level ${formatLevel(rank.level)}: ${costText(cost)}.`
-            : rank.level === state.level ? `Level ${formatLevel(state.level)} ist genau richtig – nicht weiter leveln!`
-              : `Auf Level ${formatLevel(state.level)} liegt es schon über ${formatNumber(l.cap)} WP – zu hoch für diese Liga (Power-ups lassen sich nicht zurücknehmen).`,
-        ]) : null,
-        tooWeak ? line([`Erreicht selbst auf Level ${data.rules.maxLevel} nur ${formatNumber(max50)} WP – zu schwach für die Grenze.`], 'info-card__line--warn') : null,
-        !l.cap && rank ? line([cost ? `Bis Level ${formatLevel(rank.level)}: ${costText(cost)}.` : 'Schon auf dem höchsten Level.']) : null,
-      ]);
-    });
-    return card('Kampfliga', [
-      ...rows,
-      line(['Platz und Attacken: Gesamt-Rangliste von PvPoke. IV-Rang: alle 4096 IV-Kombinationen nach Stat-Produkt (Angriff × Verteidigung × KP) unter der WP-Grenze – in der Super- und Hyperliga gewinnen oft niedrige Angriffs-IVs.']),
-      p.shadow ? line(['Crypto-Pokémon machen auch im Trainerkampf 20 % mehr Schaden und nehmen 20 % mehr.']) : null,
-    ], { id: 'league-card' });
-  }
-
-  const fact = (label, value) => el('div', {}, [el('dt', { text: label }), el('dd', { text: value })]);
 
   function maxCard() {
     const m = p.rating.max;
@@ -553,7 +481,7 @@ const Detail = (() => {
         ]))),
       ])]),
       p.megaEnergy.first ? line([`Erste ${primal ? 'Protomorphose' : 'Mega-Entwicklung'}: ${formatNumber(p.megaEnergy.first)} ${primal ? 'Proto' : 'Mega'}-Energie. Danach kostet sie in der Ruhezeit Energie (je kürzer die Ruhezeit, desto weniger).`]) : null,
-      plus ? line([`Zusatz-Lade-Attacke ${plus.name} (${data.types[plus.type]}): nur als Mega, in Raids ${formatNumber(plus.power)} Stärke auf Basis-Level, bis ×${formatNumber(data.rules.plusMoveFactor[p.megaLevels - 1], 1)} auf dem höchsten Mega-Level. Gilt in Raids und Trainerkämpfen, nicht beim Verteidigen von Arenen.`]) : null,
+      plus ? line([`Zusatz-Lade-Attacke ${plus.name} (${data.types[plus.type]}): nur als Mega, in Raids ${formatNumber(plus.power)} Stärke auf Basis-Level, bis ×${formatNumber(data.rules.plusMoveFactor[p.megaLevels - 1], 1)} auf dem höchsten Mega-Level. Gilt in Raids, aber nicht in Arenenkämpfen.`]) : null,
       p.megaLevels === 4 ? line([`Super-Max-Level: Die Mega selbst kämpft wie ${data.rules.megaLevels[3].selfCpBoost} Level höher (Level 50 → 52).`], 'info-card__line--highlight') : null,
       line([`Tipp: Für Bonbons, XL-Chance und EP zählt nur das ${primal ? 'Proto' : 'Mega'}-Level – dafür musst du ${p.name} nicht hochleveln.`]),
     ], { id: 'mega-card' });
@@ -576,7 +504,7 @@ const Detail = (() => {
       if (f.partner) cost.push(`dazu ${Power.pokemon(f.partner).name} (${f.partnerCandy} seiner Bonbons)`);
       items.push(el('li', {}, [
         f.partner ? 'Fusion zu ' : 'Formwechsel zu ', el('a', { href: `#pokemon=${t.key}`, data: { pokemon: t.key }, text: t.name }),
-        ` (Bewertung: ${Power.GRADES[t.rating.grade].label})`,
+        ` (Bewertung: ${Power.GRADES[Power.gradeOf(t)].label})`,
         cost.length ? `: ${cost.join(', ')}` : '',
         f.requires.length ? `. Braucht die Attacke ${f.requires.map(moveName).join(' oder ')}` : '',
         f.replaces.length ? `. ${f.replaces.map((r) => (r.from ? `${moveName(r.from)} wird zu ${moveName(r.to)}` : `Lernt ${moveName(r.to)}`)).join(', ')}` : '',
@@ -594,7 +522,7 @@ const Detail = (() => {
       const m = Power.pokemon(owner.megas.find((k) => Power.pokemon(k).requiredMove));
       items.push(el('li', { text: `Für die Mega-Entwicklung braucht ${p.name} die Attacke ${moveName(m.requiredMove)} (nur bei Events oder per Elite-TM).` }));
     }
-    if (owner.thirdMove && owner.thirdMove.candy < 10000 && owner.charged.length + owner.eliteCharged.length > 1) items.push(el('li', { text: `Zweite Lade-Attacke: ${formatNumber(owner.thirdMove.stardust)} Sternenstaub und ${owner.thirdMove.candy} Bonbons${p.shadow ? ' (Crypto: 20 % mehr)' : ''} – lohnt sich vor allem für die Kampfliga.` }));
+    if (owner.thirdMove && owner.thirdMove.candy < 10000 && owner.charged.length + owner.eliteCharged.length > 1) items.push(el('li', { text: `Zweite Lade-Attacke: ${formatNumber(owner.thirdMove.stardust)} Sternenstaub und ${owner.thirdMove.candy} Bonbons${p.shadow ? ' (Crypto: 20 % mehr)' : ''} – nützlich, wenn es gegen verschiedene Raid-Bosse antreten soll.` }));
     if (owner.buddyKm) items.push(el('li', { text: `Als Kumpel: 1 Bonbon alle ${formatNumber(owner.buddyKm)} km.` }));
     if (owner.upgradeOverride) items.push(el('li', { text: `${owner.name} braucht für Power-ups deutlich mehr Bonbons als andere Pokémon (siehe „Werte & Kosten“).` }));
     if (!owner.tradable) items.push(el('li', { text: 'Nicht tauschbar – deshalb gibt es kein Glücks-Pokémon und keinen Tausch-Rabatt.' }));
@@ -606,7 +534,7 @@ const Detail = (() => {
     return [
       findings(),
       ivVerdict(),
-      el('div', { class: 'info-grid' }, [raidCard(), leagueCard(), megaCard(), maxCard(), specialCard()].filter(Boolean)),
+      el('div', { class: 'info-grid' }, [raidCard(), megaCard(), maxCard(), specialCard()].filter(Boolean)),
     ];
   }
 
@@ -694,7 +622,6 @@ const Detail = (() => {
         el('th', { scope: 'row' }, [moveChip(id)]),
         el('td', { text: num(m.power) }), el('td', { text: num(m.durationS, 1) }), el('td', { text: num(m.energy) }),
         el('td', { text: num(m.power / m.durationS, 1) }), el('td', { text: num(m.energy / m.durationS, 1) }),
-        el('td', { text: num(m.pvp?.power) }), el('td', { text: num(m.pvp?.energy) }), el('td', { text: num(m.pvp?.turns) }),
       ]);
     });
     const chargedRows = charged.map((id) => {
@@ -704,22 +631,17 @@ const Detail = (() => {
         el('th', { scope: 'row' }, [moveChip(id)]),
         el('td', { text: num(power) }), el('td', { text: num(m.durationS, 1) }), el('td', { text: num(-m.energy) }),
         el('td', { text: num(power / m.durationS, 1) }), el('td', { text: m.energy ? num(power / -m.energy, 2) : '–' }),
-        el('td', { text: num(m.pvp?.power) }), el('td', { text: m.pvp ? num(-m.pvp.energy) : '–' }),
-        el('td', { text: m.pvp?.buffs ?? '–' }),
       ]);
     });
     const table = (id, caption, head, rows) => el('div', { class: 'table-wrap' }, [el('table', { class: 'data-table move-table', id }, [
       el('caption', { text: caption }),
-      el('thead', {}, [
-        el('tr', {}, [el('th', { scope: 'col', rowspan: '2', text: 'Attacke' }), el('th', { scope: 'colgroup', colspan: '5', text: 'Raids & Arenen' }), el('th', { scope: 'colgroup', colspan: '3', text: 'Kampfliga' })]),
-        el('tr', {}, head.map((h) => el('th', { scope: 'col', text: h }))),
-      ]),
+      el('thead', {}, [el('tr', {}, [el('th', { scope: 'col', text: 'Attacke' }), ...head.map((h) => el('th', { scope: 'col', text: h }))])]),
       el('tbody', {}, rows),
     ])]);
     return [
-      table('fast-table', 'Sofort-Attacken', ['Stärke', 'Dauer s', 'Energie', 'DPS', 'EPS', 'Stärke', 'Energie', 'Runden'], fastRows),
-      table('charged-table', 'Lade-Attacken', ['Stärke', 'Dauer s', 'Kosten', 'DPS', 'DPE', 'Stärke', 'Kosten', 'Effekt'], chargedRows),
-      el('p', { class: 'info-card__line', text: 'Ohne STAB und Wetter. Elite-TM: nur mit Elite-TM, an Community Days oder bei Events. Kraftreserve hat einen zufälligen Typ und fehlt in den Ranglisten.' }),
+      table('fast-table', 'Sofort-Attacken', ['Stärke', 'Dauer s', 'Energie', 'DPS', 'EPS'], fastRows),
+      table('charged-table', 'Lade-Attacken', ['Stärke', 'Dauer s', 'Kosten', 'DPS', 'DPE'], chargedRows),
+      el('p', { class: 'info-card__line', text: 'Werte für Raids und Arenen, ohne STAB und Wetter. Elite-TM: nur mit Elite-TM, an Community Days oder bei Events. Kraftreserve hat einen zufälligen Typ und fehlt in den Ranglisten.' }),
       p.purifiedMove ? el('p', { class: 'info-card__line', text: `Erlöst lernt es ${moveName(p.purifiedMove)} (statt der Crypto-Attacke).` }) : null,
     ];
   }
@@ -761,7 +683,16 @@ const Detail = (() => {
     window.scrollTo(0, scrollY);
   }
 
+  let lastBackLabel = '← Alle Pokémon';
+  // Crypto-Schalter umgelegt: Seite mit denselben Eingaben neu zeichnen.
+  Power.onSettingsChange(() => {
+    if (p && container && !container.hidden && container.isConnected && container.querySelector('#detail-title')) {
+      render(p.key, container, { backLabel: lastBackLabel });
+    }
+  });
+
   function render(key, target, { backLabel = '← Alle Pokémon' } = {}) {
+    lastBackLabel = backLabel;
     const next = Power.pokemon(key);
     // IVs und Level bleiben innerhalb einer Familie (Entwicklung, Mega, Crypto) – wie im Spiel beim Entwickeln.
     if (!p || next.family !== state.family) {

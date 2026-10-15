@@ -6,16 +6,18 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self'; font-src 'self'; style-src 'self'; script-src 'self'; connect-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Power-Kompass – welche Pokémon lohnen sich in Pokémon GO?</title>
-  <meta name="description" content="Lohnt sich das Power-up? Für jedes Pokémon in Pokémon GO – auch Mega, Crypto und Legendäre – die Bewertung für Raids und Kampfliga, Werte auf jedem Level bis 51, Power-up-Kosten und IV-Check.">
+  <meta name="description" content="Lohnt sich das Power-up? Für jedes Pokémon in Pokémon GO – auch Mega, Crypto und Legendäre – die Bewertung für Raids und Arenen, Ranglisten je Typ, Werte auf jedem Level bis 51, Power-up-Kosten und IV-Check.">
   <meta name="theme-color" content="#0b0d18">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="css/style.css?v=2026-10-15-1">
-  <script src="data/pokemon-data.js?v=2026-10-15-1" defer></script>
-  <script src="js/calc.js?v=2026-10-15-1" defer></script>
-  <script src="js/shared.js?v=2026-10-15-1" defer></script>
-  <script src="js/overview.js?v=2026-10-15-1" defer></script>
-  <script src="js/detail.js?v=2026-10-15-1" defer></script>
-  <script src="js/app.js?v=2026-10-15-1" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-10-15-2">
+  <script src="data/pokemon-data.js?v=2026-10-15-2" defer></script>
+  <script src="js/calc.js?v=2026-10-15-2" defer></script>
+  <script src="js/shared.js?v=2026-10-15-2" defer></script>
+  <script src="js/search.js?v=2026-10-15-2" defer></script>
+  <script src="js/overview.js?v=2026-10-15-2" defer></script>
+  <script src="js/browse.js?v=2026-10-15-2" defer></script>
+  <script src="js/detail.js?v=2026-10-15-2" defer></script>
+  <script src="js/app.js?v=2026-10-15-2" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Zum Inhalt springen</a>
@@ -42,7 +44,26 @@
     </nav>
     <p class="hero__eyebrow">Pokémon GO · Hochleveln oder nicht?</p>
     <h1 class="hero__title">Power<span>-</span>Kompass</h1>
-    <p class="hero__lead">Lohnt sich das Power-up? Für jedes Pokémon – auch Mega, Crypto und Legendäre – siehst du, wofür es taugt, seine Werte auf jedem Level bis 51 und was das Hochleveln kostet. Gib deine IVs ein, und die Bewertung rechnet mit deinem Pokémon.</p>
+    <p class="hero__lead">Lohnt sich das Power-up? Für jedes Pokémon – auch Mega, Crypto und Legendäre – siehst du, wie gut es in Raids und Arenen ist, seine Werte auf jedem Level bis 51 und was das Hochleveln kostet. Gib deine IVs ein, und die Bewertung rechnet mit deinem Pokémon.</p>
+    <div class="toolbar">
+      <form class="finder" id="finder" autocomplete="off" role="search">
+        <div class="search">
+          <label class="visually-hidden" for="search">Pokémon suchen</label>
+          <svg class="search__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
+          <input id="search" name="search" type="text" placeholder="Pokémon suchen, z. B. Mamutel, Mewtu, 445 …" autocomplete="off" enterkeyhint="search" spellcheck="false"
+            role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="search-suggest">
+          <button class="search__clear" id="search-clear" type="button" aria-label="Suche leeren" hidden>×</button>
+          <ul class="suggest" id="search-suggest" role="listbox" aria-label="Vorschläge" hidden></ul>
+        </div>
+      </form>
+      <div class="crypto-switch">
+        <label class="toggle">
+          <input type="checkbox" id="crypto-toggle" checked autocomplete="off">
+          <span class="toggle__track" aria-hidden="true"></span>
+          <span class="toggle__text">Crypto-Pokémon<small id="crypto-hint" aria-live="polite">an – Crypto-Pokémon zählen mit</small></span>
+        </label>
+      </div>
+    </div>
     <p class="hero__meta" id="data-meta"></p>
   </header>
 
@@ -50,32 +71,32 @@
     <noscript><p class="state">Diese Seite braucht JavaScript, um die Pokémon anzuzeigen.</p></noscript>
 
     <div id="view-list" class="overview">
-      <section class="start" aria-labelledby="list-title">
+      <nav class="view-tabs" aria-label="Ansicht">
+        <a class="view-tabs__link" href="#" data-view="all" aria-current="page">Alle Pokémon</a>
+        <a class="view-tabs__link" href="#typ" data-view="type">Nach Typ</a>
+        <a class="view-tabs__link" href="#top=gesamt" data-view="top">Top-Rankings</a>
+      </nav>
+
+      <section class="start" id="panel-all" aria-labelledby="all-title">
         <div class="section-head">
-          <h2 class="section-title" id="list-title" tabindex="-1">Alle Pokémon</h2>
+          <h2 class="section-title" id="all-title" tabindex="-1">Alle Pokémon</h2>
           <p>Tippe ein Pokémon an für Werte, Kosten und deinen IV-Check.</p>
         </div>
         <ul class="legend" aria-label="Bewertungen">
           <li><span class="verdict verdict--top verdict--small">Spitze</span> unter den Besten – lohnt sich sehr</li>
           <li><span class="verdict verdict--good verdict--small">Lohnt sich</span> stark, gute Investition</li>
-          <li><span class="verdict verdict--niche verdict--small">Nische</span> für bestimmte Einsätze oder als Ersatz</li>
+          <li><span class="verdict verdict--niche verdict--small">Nische</span> als Ersatz, wenn die Besten fehlen</li>
           <li><span class="verdict verdict--no verdict--small">Lohnt nicht</span> Sammlung, Kumpel, Tausch</li>
           <li><span class="verdict verdict--evolve verdict--small">Entwickeln</span> erst entwickeln, dann leveln</li>
         </ul>
-        <form class="finder" id="finder" autocomplete="off" role="search">
-          <div class="search">
-            <label class="visually-hidden" for="search">Pokémon suchen</label>
-            <svg class="search__icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10.5 3a7.5 7.5 0 0 1 5.96 12.05l4.25 4.24-1.42 1.42-4.24-4.25A7.5 7.5 0 1 1 10.5 3Zm0 2a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11Z"/></svg>
-            <input id="search" name="search" type="search" placeholder="Pokémon suchen, z. B. Mamutel, Mewtu, 445 …" autocomplete="off" enterkeyhint="search">
-            <button class="search__clear" id="search-clear" type="button" aria-label="Suche leeren" hidden>×</button>
-          </div>
-        </form>
         <div id="list-controls"></div>
         <p class="list-hint" id="list-hint" hidden></p>
         <p class="section-head__count" id="list-count" aria-live="polite"></p>
         <ul class="poke-grid" id="poke-grid"></ul>
         <button class="more-btn" id="list-more" type="button" hidden>Weitere anzeigen</button>
       </section>
+
+      <section class="browse" id="panel-browse" aria-labelledby="browse-title" hidden></section>
     </div>
 
     <div id="view-detail" class="detail" hidden></div>
@@ -86,15 +107,15 @@
     <div class="method__grid">
       <article>
         <h3>Raids &amp; Arenen</h3>
-        <p>Für jeden Angriffstyp eine Rangliste aller Pokémon (auch Crypto, getrennt davon die Mega-Entwicklungen) gegen einen 5-Sterne-Boss, der gegen diesen Typ schwach ist: DPS und TDO nach GamePress, Wertung (DPS³ × TDO)<sup>¼</sup>, Level 40 und 15/15/15. „Spitze“ sind die fünf Besten eines Typs, „Lohnt sich“ schafft mindestens 90 % davon, „Nische“ mindestens 80 %.</p>
+        <p>Für jeden Angriffstyp eine Rangliste aller Pokémon gegen einen 5-Sterne-Boss, der gegen diesen Typ schwach ist: DPS und TDO nach GamePress, Wertung (DPS³ × TDO)<sup>¼</sup>, Level 40 und 15/15/15. „Spitze“ sind die fünf Besten eines Typs, „Lohnt sich“ schafft mindestens 90 % davon, „Nische“ mindestens 80 %. Gezählt wird der beste Typ eines Pokémon.</p>
       </article>
       <article>
-        <h3>Kampfliga</h3>
-        <p>Superliga, Hyperliga und Meisterliga nach der Gesamt-Rangliste von PvPoke: Top 25 „Spitze“, Top 75 „Lohnt sich“, Top 200 „Nische“. Deine IVs prüft die Seite selbst: Level unter der WP-Grenze, WP und Rang deiner IVs unter allen 4096 Kombinationen (Stat-Produkt).</p>
+        <h3>Mit oder ohne Crypto</h3>
+        <p>Der Schalter „Crypto-Pokémon“ oben gilt überall. An: Crypto-Pokémon stehen in den Listen und zählen bei Plätzen und Bewertungen mit. Aus: Sie fehlen, und Plätze und Bewertungen sind ohne sie gerechnet – ein normales Pokémon kann dann weiter vorne stehen.</p>
       </article>
       <article>
         <h3>Mega &amp; Proto</h3>
-        <p>Megas zählen für ihre normale Form mit – wer sie hochlevelt, levelt die Mega mit. Gerechnet wird mit dem höchsten Mega-Level: Zusatz-Lade-Attacke („+“, ×1,0 bis ×1,3) und auf dem Super-Max-Level 2 Level mehr. Bonbon-, XL- und EP-Bonus hängen nur am Mega-Level, nicht am Power-up.</p>
+        <p>Megas haben eigene Ranglisten (pro Person ist nur eine aktiv) und zählen für ihre normale Form mit – wer sie hochlevelt, levelt die Mega mit. Gerechnet wird mit dem höchsten Mega-Level: Zusatz-Lade-Attacke („+“, ×1,0 bis ×1,3) und auf dem Super-Max-Level 2 Level mehr. Bonbon-, XL- und EP-Bonus hängen nur am Mega-Level.</p>
       </article>
       <article>
         <h3>Kosten &amp; Level</h3>
