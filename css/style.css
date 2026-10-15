@@ -233,25 +233,6 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
     color: var(--muted);
   }
 }
-@media (forced-colors: active) {
-  .page-nav__link[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }
-  /* Hoher Kontrast: Zustände (an/aus, gewählt) mit Systemfarben statt Hintergrund und Schatten. */
-  .toggle__track { forced-color-adjust: none; background: Canvas; border: 1px solid CanvasText; }
-  .toggle__track::after { top: 2px; left: 2px; background: CanvasText; }
-  .toggle input:checked + .toggle__track,
-  .crypto-switch .toggle input:checked + .toggle__track { background: Highlight; border-color: Highlight; }
-  .toggle input:checked + .toggle__track::after { background: HighlightText; }
-  .toggle input:disabled + .toggle__track { border-color: GrayText; }
-  .toggle input:disabled + .toggle__track::after { background: GrayText; }
-  .segmented input:checked + span,
-  .tabs__btn[aria-selected="true"],
-  .chip[aria-pressed="true"],
-  .preset[aria-pressed="true"],
-  .view-tabs__link[aria-current="page"],
-  .sub-tabs__link[aria-current="page"],
-  .type-btn[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
-  .search input:focus, .select select:focus, .iv select:focus, .cp-input input:focus { outline: 2px solid Highlight; outline-offset: 2px; }
-}
 
 .hero__eyebrow {
   margin: 0 0 6px;
@@ -1182,8 +1163,8 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
   .select::after { right: 14px; }
 }
 
-/* Sehr schmale Handys (320 px): "Verteidigung" passt noch über sein Feld. */
-@media (max-width: 359.98px) {
+/* Schmale Handys (320–375 px): "Verteidigung" passt noch über sein Feld. */
+@media (max-width: 379.98px) {
   .iv__label { letter-spacing: 0; font-size: .68rem; }
 }
 
@@ -1210,4 +1191,27 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
   .info-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .info-grid > #raid-card, .info-grid > #mega-card { grid-column: 1 / -1; }
   .method__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* ---------- Hoher Kontrast (Windows) ----------
+   Steht am Ende, damit es die normalen Zustands-Regeln (gleiche Spezifität) überschreibt. */
+
+@media (forced-colors: active) {
+  .page-nav__link[aria-current="page"] { text-decoration: underline; text-underline-offset: 4px; }
+  /* Hoher Kontrast: Zustände (an/aus, gewählt) mit Systemfarben statt Hintergrund und Schatten. */
+  .toggle__track { forced-color-adjust: none; background: Canvas; border: 1px solid CanvasText; }
+  .toggle__track::after { top: 2px; left: 2px; background: CanvasText; }
+  .toggle input:checked + .toggle__track,
+  .crypto-switch .toggle input:checked + .toggle__track { background: Highlight; border-color: Highlight; }
+  .toggle input:checked + .toggle__track::after { background: HighlightText; }
+  .toggle input:disabled + .toggle__track { border-color: GrayText; }
+  .toggle input:disabled + .toggle__track::after { background: GrayText; }
+  .segmented input:checked + span,
+  .tabs__btn[aria-selected="true"],
+  .chip[aria-pressed="true"],
+  .preset[aria-pressed="true"],
+  .view-tabs__link[aria-current="page"],
+  .sub-tabs__link[aria-current="page"],
+  .type-btn[aria-current="page"] { forced-color-adjust: none; background: Highlight; color: HighlightText; border-color: Highlight; }
+  .search input:focus, .select select:focus, .iv select:focus, .cp-input input:focus { outline: 2px solid Highlight; outline-offset: 2px; }
 }

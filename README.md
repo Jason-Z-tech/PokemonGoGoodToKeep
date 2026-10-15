@@ -3,8 +3,9 @@
 **Lohnt sich das Power-up?** Für jedes Pokémon in **Pokémon GO** – normale, regionale Formen, Legendäre,
 Mysteriöse, Ultrabestien, **Mega-Entwicklungen und Protomorphosen** sowie alle **Crypto-Pokémon** – zeigt die
 Seite, wie gut es in **Raids und Arenen** ist, seine Werte auf jedem Level und was das Hochleveln kostet. Mit eigenen IVs.
-Raid-Konter stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass/), Max-Kämpfe im
-[Dyna-Kompass](https://jason-z-tech.github.io/dyna-kompass/). Trainerkämpfe (GO-Kampfliga) bewertet die Seite bewusst nicht.
+Konter für einzelne Raid-Bosse stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass/), Max-Kämpfe im
+[Dyna-Kompass](https://jason-z-tech.github.io/dyna-kompass/). Max-Kämpfe und Trainerkämpfe (GO-Kampfliga) bewertet diese
+Seite deshalb bewusst nicht.
 
 - **Oben auf jeder Seite:** die **Suche** (deutsch, englisch oder Pokédex-Nummer wie „445“ oder „#025“; auch ohne
   Bindestrich wie „hooh“ und mit ae/oe/ue statt Umlaut) mit Vorschlägen – Pfeiltasten und Enter oder antippen öffnet
@@ -15,13 +16,12 @@ Raid-Konter stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass
 - **Drei Ansichten** (Reiter über der Liste):
   - **Alle Pokémon:** jedes Pokémon mit Urteil – „Spitze“, „Lohnt sich“, „Nische“, „Lohnt nicht“ oder „Entwickeln“
     (Vorstufe: erst entwickeln, dann leveln) – und dem wichtigsten Grund („Raids: Platz 3 Feuer“). Filter nach
-    Bewertung, Einsatz (Raids & Arenen, Max-Kämpfe), Typ und Art (Normal, Legendär/Mysteriös/Ultrabestien, Mega &
-    Proto, nur Crypto). Mit Einsatz „Raids“ und einem Angriffstyp wird die Liste zur vollständigen Rangliste dieses
-    Typs. Zurück im Browser zeigt die Liste wieder so, wie sie war (Suche, Filter, Anzahl).
+    Anzeige (Urteil oder Rangliste), Bewertung, Typ und Art (Normal, Legendär/Mysteriös/Ultrabestien, Mega & Proto,
+    nur Crypto). Mit „Rangliste“ und einem Angriffstyp wird die Liste zur vollständigen Raid-Rangliste dieses Typs. Zurück im Browser zeigt die Liste wieder so, wie sie war (Suche, Filter, Anzahl).
   - **Nach Typ:** 18 Typ-Knöpfe. Je Typ: wogegen er stark ist und wogegen seine Pokémon schwach sind, die 10 besten
-    Raid-Angreifer, die 3 besten Megas, die 5 besten Dynamax-Pokémon und alle Pokémon dieses Typs (beste zuerst).
-  - **Top-Rankings:** die besten Raid-Angreifer über alle Typen (jeweils in ihrem besten Typ), die Top 5 je Typ,
-    die Top 3 Megas je Typ und die Top 5 je Typ in Max-Kämpfen.
+    Raid-Angreifer, die 3 besten Megas und alle Pokémon dieses Typs (beste zuerst).
+  - **Top-Rankings:** die besten Raid-Angreifer über alle Typen (jeweils in ihrem besten Typ), die Top 5 je Typ
+    und die Top 3 Megas je Typ.
 - **Pokémon-Seite:** oben das Urteil mit Begründung und Links zu Crypto-, Mega- und Vorstufen/Entwicklungen.
   Darunter **„Dein Pokémon“**: IVs (standardmäßig 15/15/15 = 100 %, Vorlagen für Glücks-Minimum 12/12/12 und
   Raid-Minimum 10/10/10), „Level jetzt“ (oder WP eingeben – die Seite findet das Level, auch wenn die IVs danach
@@ -30,9 +30,8 @@ Raid-Konter stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass
   Reiter:
   - **Bewertung:** Raids & Arenen (Platz je Angriffstyp, beste Attacken, DPS/TDO auf Level 40 und 50 mit deinen IVs,
     Hinweis auf nötige Top-TM-Attacken bzw. den Meteoriten für Zenitstürmer), Mega/Proto (Boni je Mega-Level,
-    Zusatz-Lade-Attacke „+“, Super-Max-WP-Boost),
-    Max-Kämpfe (nur Dynamax-Exemplare) und Besonderheiten (Formwechsel wie König des Schwertes, Fusionen wie Schwarzes
-    Kyurem, Erlösen, zweite Lade-Attacke, Apex-Attacken, Kumpel-Distanz).
+    Zusatz-Lade-Attacke „+“, Super-Max-WP-Boost) und Besonderheiten (Formwechsel wie König des Schwertes, Fusionen wie
+    Schwarzes Kyurem, Erlösen, zweite Lade-Attacke, Apex-Attacken, Kumpel-Distanz).
   - **Werte & Kosten:** WP, Angriff, Verteidigung und KP auf jedem Level von 1 bis 50 (auf Wunsch mit halben Leveln,
     mit Bester-Kumpel- oder Super-Max-Boost) und die aufsummierten Kosten an Sternenstaub, Bonbons und Bonbons XL ab dem
     aktuellen Level.
@@ -44,8 +43,8 @@ Raid-Konter stehen im [Raid-Kompass](https://jason-z-tech.github.io/raid-kompass
 
 Lokal: `index.html` doppelklicken. Die Seite braucht keinen Server und keine Installation.
 Direktlinks: `index.html#pokemon=mamoswine`, `index.html#pokemon=crypto-mamoswine`, `index.html#pokemon=starmie-mega`,
-Ansichten: `#typ` (Typ wählen), `#typ=fire` (Typ englisch), `#top=gesamt`, `#top=raid`, `#top=mega`, `#top=max`,
-vollständige Ranglisten in „Alle Pokémon“: `#rangliste=raid-fire`, `#rangliste=raid-fire-mega`, `#rangliste=max-fire`.
+Ansichten: `#typ` (Typ wählen), `#typ=fire` (Typ englisch), `#top=gesamt`, `#top=raid`, `#top=mega`,
+vollständige Ranglisten in „Alle Pokémon“: `#rangliste=raid-fire`, `#rangliste=raid-fire-mega`.
 
 ## Veröffentlichen (GitHub Pages)
 
@@ -64,7 +63,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html` und `datenschutz.html` den Zusatz
-`?v=2026-10-15-3` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
+`?v=2026-10-15-4` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
 Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und
 neue Skripte mischen.
 
@@ -82,7 +81,7 @@ node tests/e2e.mjs --url https://jason-z-tech.github.io/PokemonGoGoodToKeep/   #
 Startet ein unsichtbares Chrome (oder Edge) und klickt die Seite mit echten Mausklicks durch – auf Desktop-, Tablet-,
 Handy- und schmaler Handy-Breite (320 px): Liste, „Weitere anzeigen“, Suche oben (deutsch, englisch, Nummer, „#025“,
 „hooh“, „ruestung“; Vorschläge, Escape, Pfeiltasten und Enter öffnen ein Pokémon), jeder Bewertungs-Filter (Anzahl wie
-in den Daten; „Entwickeln“ fällt beim Wechsel des Einsatzes weg), die Raid-Ranglisten je Typ
+in den Daten; „Entwickeln“ fällt beim Wechsel zur Rangliste weg), die Raid-Ranglisten je Typ
 (Reihenfolge und Plätze wie in den Daten, Megas getrennt), der Crypto-Schalter (ohne Crypto: keine Crypto-Pokémon,
 Plätze neu gezählt, Bewertungen ohne sie), Filter zurücksetzen, die Ansicht „Nach Typ“ (Top 10, Megas, nur Pokémon
 des Typs, zurück mit Fokus auf dem Eintrag), „Top-Rankings“ (Sortierung, Karten je Typ wie die Ranglisten),
@@ -105,8 +104,8 @@ node scripts/build-data.mjs --refresh
 Das Skript
 1. lädt die aktuellen Spieldaten (Game Master von [PokeMiners](https://github.com/PokeMiners/game_masters)), die
    offiziellen deutschen und englischen Spieltexte ([holoholo-text](https://github.com/sora10pls/holoholo-text)),
-   die Release-Angaben von [PvPoke](https://github.com/pvpoke/pvpoke) und die Dynamax-Daten des
-   [Dyna-Kompass](https://github.com/Jason-Z-tech/dyna-kompass),
+   die Release-Angaben und Attacken von [PvPoke](https://github.com/pvpoke/pvpoke) (für Attacken, die der Game Master
+   noch nicht kennt),
 2. nimmt nur Pokémon auf, die im Spiel erschienen sind (Angaben von PvPoke, ergänzt um `RELEASE_FIXES` für Pokémon,
    die im Trainerkampf nicht antreten können – Ditto, Ninjatom, Cosmog …),
 3. stellt Crypto-Versionen, Mega-Entwicklungen und Protomorphosen, Entwicklungen und Formwechsel zusammen,
@@ -117,7 +116,7 @@ Das Skript
 
 Ohne `--refresh` werden die zwischengespeicherten Daten aus `scripts/.cache/` verwendet. `--report` gibt zusätzlich
 die Top 15 jeder Raid-Rangliste aus. Benötigt nur Node.js (ab Version 22) und Chrome oder Edge, keine Pakete.
-Am Ende listet das Skript Hinweise auf, z. B. ein Dynamax-Pokémon, das es keinem Eintrag zuordnen konnte.
+Am Ende listet das Skript Hinweise auf, z. B. PvPoke-Attacken ohne Gegenstück in den Spieldaten oder Pokémon ohne Bild.
 
 ## So wird bewertet
 
@@ -142,12 +141,10 @@ Das Urteil richtet sich nach **Raids und Arenen** (bester Angriffstyp, bei norma
   aus den Spieldaten: Bonbons +1/+1/+2/+3, XL-Chance –/10/25/30 %, EP –/+50/+100/+200 für gefangene Pokémon passender
   Typen, Ruhezeit 7/5/3/1 Tage, Super-Max zusätzlich 5000 Mega-Energie. Der Raid-Bonus (+10 %, eigener Typ +30 %) gilt
   für alle anderen im Raid, nicht für die Mega selbst.
-- **Max-Kämpfe:** Nur für Dynamax-/Gigadynamax-Exemplare – deshalb zählen sie nicht zum Urteil, sondern stehen getrennt
-  (Platz als Angreifer je Typ und als Tank, Daten des Dyna-Kompass).
 - **Entwickeln:** Taugt eine Vorstufe selbst nichts (Stufe „Lohnt nicht“), eine Entwicklung aber schon, heißt das
   Urteil „Erst entwickeln“ – mit Kosten und Bedingungen der Entwicklung (bei Crypto ohne Tausch-Bedingung, erlöst mit
   den Erlöst-Bonbons). Taugt die Vorstufe selbst schon etwas, behält sie ihr Urteil, und die Seite nennt die stärkere
-  Entwicklung nur als Hinweis („Noch stärker als …“).
+  Entwicklung nur als Hinweis („Noch stärker nach der Entwicklung zu …“).
 
 **Werte und Kosten:** WP = ⌊(Angriff + IV) × √(Verteidigung + IV) × √(KP + IV) × CPM² ÷ 10⌋, CPM aus den Spieldaten
 (halbe Level als Wurzel-Mitte). Power-up-Kosten aus `POKEMON_UPGRADE_SETTINGS` (Endynalos mit eigener Tabelle):

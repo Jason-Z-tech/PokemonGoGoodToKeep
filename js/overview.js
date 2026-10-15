@@ -1,17 +1,19 @@
 'use strict';
 
-// Ansicht "Alle Pokémon": jedes Pokémon mit Bewertung – Suche (oben auf der Seite), Filter (Einsatz, Bewertung,
-// Typ, Art) und Sortierung. Mit Einsatz "Raids" und einem Typ wird die Liste zur vollständigen Rangliste dieses Typs.
+// Ansicht "Alle Pokémon": jedes Pokémon mit Bewertung für Raids und Arenen – Suche (oben auf der Seite), Filter
+// (Anzeige, Bewertung, Typ, Art) und Sortierung. Mit "Rangliste" und einem Typ wird die Liste zur vollständigen
+// Rangliste dieses Angriffstyps.
 // Der Schalter "Crypto-Pokémon" blendet Crypto-Pokémon aus und rechnet Plätze und Bewertungen ohne sie.
 
 const Overview = (() => {
   const { el, data, formatNumber } = Power;
 
   const STEP = 48;
+  // Bewertet wird nur für Raids und Arenen. "Urteil": jedes Pokémon mit seinem Urteil; "Rangliste": nach Platz
+  // als Angreifer (mit Typ: die ganze Rangliste dieses Angriffstyps).
   const USES = [
-    { id: 'all', label: 'Alle Einsätze' },
-    { id: 'raid', label: 'Raids & Arenen', inLabel: 'in Raids & Arenen' },
-    { id: 'max', label: 'Max-Kämpfe', inLabel: 'in Max-Kämpfen' },
+    { id: 'all', label: 'Urteil' },
+    { id: 'raid', label: 'Rangliste', inLabel: 'in der Raid-Rangliste' },
   ];
   const GROUPS = [
     { id: 'all', label: 'Alle' },
@@ -30,6 +32,7 @@ const Overview = (() => {
   ];
   const DEFAULTS = { grade: 'all', group: 'all', use: 'all', type: '', sort: 'dex' };
   const state = { ...DEFAULTS, query: '', shown: STEP };
+  const renderListeners = [];
 
   const index = new Map(data.pokemon.map((p) => [p.key, Power.searchIndex(p)]));
 
@@ -48,27 +51,18 @@ const Overview = (() => {
   }
   const raidRank = (type, key) => (Power.settings.crypto ? ranks.crypto : ranks.plain).get(`${type}|${key}`) ?? null;
 
-  // Stufe und Platz für den gewählten Einsatz.
+  // Stufe und Platz für die gewählte Liste.
   function useRating(p, use = state.use, type = state.type, group = state.group) {
     if (use === 'all') return { grade: Power.gradeOf(p), rank: null };
-    if (use === 'raid') {
-      // Megas haben eine eigene Rangliste (pro Person nur eine aktiv) – nur unter "Mega & Proto".
-      if ((p.variant !== 'normal') !== (group === 'mega')) return null;
-      const list = Power.raidList(p);
-      if (type) {
-        const rank = raidRank(type, p.key);
-        if (!rank) return null;
-        return { grade: list.find((r) => r.type === type)?.grade ?? 0, rank, type };
-      }
-      return list[0] ? { grade: list[0].grade, rank: list[0].rank, type: list[0].type } : null;
-    }
-    const m = p.rating.max;
-    if (!m) return null;
+    // Megas haben eine eigene Rangliste (pro Person nur eine aktiv) – nur unter "Mega & Proto".
+    if ((p.variant !== 'normal') !== (group === 'mega')) return null;
+    const list = Power.raidList(p);
     if (type) {
-      const a = m.attack.find((x) => x.type === type);
-      return a ? { grade: a.grade, rank: a.rank, type, kind: a.kind } : null;
+      const rank = raidRank(type, p.key);
+      if (!rank) return null;
+      return { grade: list.find((r) => r.type === type)?.grade ?? 0, rank, type };
     }
-    return { grade: m.grade, rank: m.attack[0]?.rank ?? null, type: m.attack[0]?.type, kind: m.attack[0]?.kind };
+    return list[0] ? { grade: list[0].grade, rank: list[0].rank, type: list[0].type } : null;
   }
 
   // ---------- Filter ----------
@@ -99,7 +93,7 @@ const Overview = (() => {
       if (!matchesGroup(p, s.group)) continue;
       const rating = useRating(p, s.use, s.type, s.group);
       if (!rating) continue;
-      // Typ-Filter: bei Raids und Max-Kämpfen der Angriffstyp, sonst der Typ des Pokémon.
+      // Typ-Filter: in der Raid-Rangliste der Angriffstyp, sonst der Typ des Pokémon.
       if (s.type && s.use === 'all' && !p.types.includes(s.type)) continue;
       list.push({ p, rating });
     }
@@ -145,12 +139,7 @@ const Overview = (() => {
 
   function useText(p, rating) {
     const type = rating.type ?? state.type;
-    if (state.use === 'raid') return `Platz ${rating.rank}${type ? ` als ${data.types[type]}-Angreifer` : ''}${p.variant !== 'normal' ? ' (Megas)' : ''}`;
-    // Max-Kämpfe: Der Platz gilt für die Form, die ihn erreicht (Gigadynamax oft mit eigener G-Max-Attacke).
-    const m = p.rating.max;
-    const kind = rating.kind === 'gigantamax' ? `Gigadynamax${m.move ? ` (${m.move})` : ''}` : 'Dynamax';
-    if (!rating.rank) return `Tank: Platz ${m.tankRank} – nur als ${kind}`;
-    return `Platz ${rating.rank}${type ? ` (${data.types[type]})` : ''} – nur als ${kind}`;
+    return `Platz ${rating.rank}${type ? ` als ${data.types[type]}-Angreifer` : ''}${p.variant !== 'normal' ? ' (Megas)' : ''}`;
   }
 
   function chipGroup(id, label, options, key, counts = null) {
@@ -198,7 +187,7 @@ const Overview = (() => {
     const typeLabel = state.use === 'all' ? 'Typ' : 'Angriffstyp';
     const changed = Object.keys(DEFAULTS).some((k) => state[k] !== DEFAULTS[k]);
     return el('div', { class: 'filters' }, [
-      chipGroup('filter-use', 'Einsatz', USES, 'use'),
+      chipGroup('filter-use', 'Anzeige', USES, 'use'),
       chipGroup('filter-grade', 'Bewertung', gradeOptions, 'grade', gradeCounts),
       el('div', { class: 'filters__row' }, [
         select('filter-type', typeLabel, [{ id: '', label: 'Alle Typen' }, ...Power.TYPE_ORDER.map((t) => ({ id: t, label: data.types[t] }))], 'type'),
@@ -227,12 +216,11 @@ const Overview = (() => {
         ? `Rangliste: die besten ${data.types[state.type]}-Angreifer gegen einen Raid-Boss, der schwach gegen ${data.types[state.type]} ist (Level 40, 15/15/15). ${state.group === 'mega' ? 'Mega-Entwicklungen auf ihrem höchsten Mega-Level.' : 'Mega-Entwicklungen stehen unter „Art: Mega & Proto“.'}${crypto}`
         : `Pokémon mit ihrem stärksten Angriffstyp. Wähle einen Angriffstyp für die vollständige Rangliste.${crypto}`;
     }
-    if (state.use === 'max') return 'Gilt nur für Dynamax- und Gigadynamax-Pokémon aus Max-Kämpfen – mehr im Dyna-Kompass.';
     return null;
   }
 
   function render() {
-    // Filter, die es in dieser Einstellung nicht gibt, fallen weg ("Entwickeln" nur bei "Alle Einsätze",
+    // Filter, die es in dieser Einstellung nicht gibt, fallen weg ("Entwickeln" nur beim Urteil,
     // "Nur Crypto" nur mit Crypto-Pokémon).
     if (state.grade === 'evolve' && state.use !== 'all') state.grade = 'all';
     if (state.group === 'shadow' && !Power.settings.crypto) state.group = 'all';
@@ -261,6 +249,7 @@ const Overview = (() => {
     const more = document.getElementById('list-more');
     more.hidden = rest <= 0;
     more.textContent = `Weitere ${Math.min(STEP, rest)} anzeigen (noch ${formatNumber(rest)})`;
+    for (const fn of renderListeners) fn();
   }
 
   function showMore() {
@@ -296,5 +285,6 @@ const Overview = (() => {
     render();
   }
 
-  return { init, render, showRanking, snapshot, restore, tile, raidRank, byDex };
+  // onRender: nach jeder Änderung der Liste (die Navigation merkt sich den Stand im Verlaufseintrag).
+  return { init, render, showRanking, snapshot, restore, onRender: (fn) => renderListeners.push(fn), tile, raidRank, byDex };
 })();

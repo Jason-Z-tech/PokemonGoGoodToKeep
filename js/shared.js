@@ -36,16 +36,19 @@ const Power = (() => {
     for (const fn of listeners) fn(settings);
   }
   const visible = (p) => settings.crypto || !p.shadow;
-  const gradeOf = (p) => (settings.crypto ? p.rating.grade : p.rating.gradeNS);
-  const evolveOf = (p) => (settings.crypto ? p.rating.evolve : p.rating.evolveNS) ?? null;
+  // Ein Crypto-Pokémon selbst (z. B. seine Seite bei ausgeschaltetem Schalter) behält Plätze und Stufen mit Crypto –
+  // ohne Crypto hat es keinen Platz.
+  const withCrypto = (p) => settings.crypto || Boolean(p?.shadow);
+  const gradeOf = (p) => (withCrypto(p) ? p.rating.grade : p.rating.gradeNS);
+  const evolveOf = (p) => (withCrypto(p) ? p.rating.evolve : p.rating.evolveNS) ?? null;
   // Stärkere Entwicklung einer Vorstufe, die selbst schon etwas taugt (nur ein Hinweis, kein "Erst entwickeln").
-  const betterOf = (p) => (settings.crypto ? p.rating.better : p.rating.betterNS) ?? null;
-  // Werte eines Raid-Eintrags (ein Angriffstyp) im aktuellen Modus.
-  const raidView = (x) => (settings.crypto || !x
+  const betterOf = (p) => (withCrypto(p) ? p.rating.better : p.rating.betterNS) ?? null;
+  // Werte eines Raid-Eintrags (ein Angriffstyp) von Pokémon p im aktuellen Modus.
+  const raidView = (x, p = null) => (withCrypto(p) || !x
     ? x
     : { ...x, rank: x.rankNS, of: x.ofNS, ratio: x.ratioNS, grade: x.gradeNS, plainGrade: x.plainGradeNS });
   // Raid-Einträge eines Pokémon im aktuellen Modus, stärkster zuerst.
-  const raidList = (p) => (p.rating.raid ?? []).map(raidView).sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
+  const raidList = (p) => (p.rating.raid ?? []).map((x) => raidView(x, p)).sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
 
   // ---------- DOM ----------
 
@@ -113,7 +116,6 @@ const Power = (() => {
     }
     reasons.sort((a, b) => b.grade - a.grade);
     if (reasons.length) return reasons[0].text;
-    if (p.rating.max?.grade >= 2) return 'Nur als Dynamax stark (Max-Kämpfe)';
     if (p.variant !== 'normal') return 'Mega-Bonus nutzbar, als Angreifer schwach';
     return raid ? `Raids: Platz ${raid.rank} ${data.types[raid.type]} – zu weit hinten` : 'Kein Raid-Angreifer';
   }
@@ -190,14 +192,13 @@ const Power = (() => {
   function renderSources() {
     const target = document.getElementById('sources');
     if (!target || !ready) return;
-    const { gameMaster, texts, pvpoke, dyna, images, gameMasterDate } = data.sources;
+    const { gameMaster, texts, pvpoke, images, gameMasterDate } = data.sources;
     const link = (source) => el('a', { href: source.url, text: source.name });
     const hasArtwork = data.pokemon.some((p) => p.image);
     target.replaceChildren(
       'Quellen: Spieldaten von ', link(gameMaster),
       gameMasterDate ? ` (Stand ${formatDate(gameMasterDate)})` : '',
       ', deutsche Namen aus den Spieltexten (', link(texts), '), erschienene Pokémon nach ', link(pvpoke),
-      ', Dynamax-Pokémon vom ', link(dyna),
       ...(hasArtwork ? [', Bilder von ', link(images)] : []), '. ',
       `Seite erstellt am ${formatDate(data.generatedAt)}.`,
       hasArtwork ? ' Artworks © Pokémon/Nintendo/Creatures/GAME FREAK.' : '',
@@ -206,7 +207,7 @@ const Power = (() => {
 
   return {
     data, ready, TYPE_ORDER, GRADES, EVOLVE, CLASSES,
-    settings, setCrypto, onSettingsChange, visible, gradeOf, evolveOf, betterOf, raidView, raidList,
+    settings, setCrypto, onSettingsChange, visible, withCrypto, gradeOf, evolveOf, betterOf, raidView, raidList,
     el, formatNumber, formatLevel, formatPercent, formatDate, slugOf, normalize, searchIndex, matchesQuery, ivPercent,
     verdictOf, shortReason,
     typeChip, typeDots, verdictBadge, gradeBadge, badges, eliteBadge, pokemonArt, meter, pokemonLink, renderSources,

@@ -108,6 +108,8 @@ function testCalc() {
     }
     check(t.megas.every((k) => byKey.get(k).variant !== 'normal') && t.normal.every((k) => byKey.get(k).variant === 'normal'), `Rangliste ${type}: Mega und normal vermischt`);
   }
+  // Keine Max-Kämpfe in den Daten.
+  check(!DATA.maxTables && !DATA.sources.dyna && DATA.pokemon.every((p) => !p.rating.max), 'Daten enthalten noch Max-Kämpfe');
   // Mega-Level 4 nur für Megas, die es im Spiel haben; Super-Max-Boost +2 Level.
   check(DATA.rules.megaLevels[3].selfCpBoost === 2 && DATA.rules.megaLevels.map((l) => l.candy).join() === '1,1,2,3', 'Mega-Level-Regeln aus den Spieldaten');
   check(byKey.get('starmie-mega').megaLevels === 4 && byKey.get('gengar-mega').megaLevels === 3, 'Super-Max-Level: Mega-Starmie ja, Mega-Gengar nein');
@@ -175,7 +177,7 @@ async function testStart(page, vp) {
   await page.click('#filter-grade button[data-value="evolve"]');
   s = await listState(page);
   check(s.tiles.length && s.tiles.every((t) => t.verdict === 'verdict--evolve' && byKey.get(t.key).rating.evolve), `${tag} Filter Entwickeln`);
-  // "Entwickeln" gibt es nur bei "Alle Einsätze": Beim Wechsel des Einsatzes fällt der Filter weg.
+  // "Entwickeln" gibt es nur bei "Urteil": Beim Wechsel zur Rangliste fällt der Filter weg.
   await page.click('#filter-use button[data-value="raid"]');
   s = await listState(page);
   const allChip = await page.eval(`(() => { const b = document.querySelector('#filter-grade button[data-value="all"]'); return { pressed: b.getAttribute('aria-pressed'), count: b.querySelector('.chip__count').textContent }; })()`);
@@ -272,8 +274,17 @@ async function testBrowse(page, vp) {
     const cards = await page.eval(`[...document.querySelectorAll('#top-cards .type-card')].map((c) => ({ type: c.dataset.type, keys: [...c.querySelectorAll('a.card-row')].map((a) => a.dataset.pokemon) }))`);
     check(cards.length === 18 && cards.every((c) => c.keys.join() === DATA.raidTables[c.type][list].slice(0, n).join()), `${tag} Top-Rankings ${tab}: Karten weichen von den Ranglisten ab`);
   }
-  await page.click('.sub-tabs__link[data-top="max"]');
-  check(await page.eval(`document.querySelectorAll('#top-cards .type-card').length`) === 18, `${tag} Top-Rankings Max-Kämpfe`);
+  // Max-Kämpfe gibt es nur im Dyna-Kompass: kein Reiter, keine Liste, alte Adressen führen zur Übersicht.
+  check(!(await page.eval(`document.querySelector('.sub-tabs__link[data-top="max"]')`)), `${tag} Top-Rankings: Reiter Max-Kämpfe darf es nicht geben`);
+  await page.goto(url('index.html', '#top=max'));
+  check(await page.eval(`document.querySelector('.sub-tabs__link[aria-current="page"]')?.dataset.top`) === 'gesamt', `${tag} #top=max → Beste Angreifer`);
+  await page.goto(url('index.html', '#typ=fire'));
+  check(!(await page.eval(`document.getElementById('type-max-list')`)), `${tag} Nach Typ: keine Max-Liste`);
+  await page.goto(url('index.html', '#rangliste=max-fire'));
+  const oldMax = await listState(page);
+  check(oldMax.tiles.length === 48 && oldMax.tiles.every((t) => t.rank === null), `${tag} #rangliste=max-fire → normale Liste`);
+  check((await page.eval(`[...document.querySelectorAll('#filter-use button')].map((b) => b.dataset.value).join()`)) === 'all,raid', `${tag} Liste: nur Urteil und Raid-Rangliste`);
+  await page.click('.view-tabs__link[data-view="top"]');
   check((await page.eval('document.documentElement.scrollWidth - document.documentElement.clientWidth')) <= 0, `${tag} Top-Rankings läuft seitlich über`);
   // Zurück zu "Alle Pokémon".
   await page.click('.view-tabs__link[data-view="all"]');
@@ -462,6 +473,26 @@ async function testHistory(page, vp) {
   check(query === 'glurak' && s.tiles.length > 1 && s.tiles.every((t) => /Glurak/.test(byKey.get(t.key).name) && t.rank === null),
     `${tag} Zurück: Liste mit Suche "glurak" erwartet (Suche "${query}", ${s.tiles.length} Kacheln: ${s.tiles.slice(0, 4).map((t) => t.key).join(', ')})`);
   check((await page.eval('document.activeElement?.dataset?.pokemon ?? null')) === 'charizard', `${tag} Zurück: Fokus auf Glurak`);
+  // Vor bis zur Rangliste: wieder die ganze Feuer-Rangliste (jeder Eintrag merkt sich seinen eigenen Stand).
+  await page.eval('history.forward()');
+  await sleep(150);
+  await page.eval('history.forward()');
+  await sleep(150);
+  s = await listState(page);
+  check((await page.eval('location.hash')) === '#rangliste=raid-fire' && (await search()) === '' && s.tiles[0]?.key === DATA.raidTables.FIRE.normal[0] && s.tiles[0]?.rank === 1,
+    `${tag} Vor zur Rangliste: Feuer-Rangliste erwartet (${s.tiles.slice(0, 3).map((t) => t.key).join(', ')})`);
+  // Neue Suche, dann Vor und Zurück: die neue Suche bleibt.
+  await page.eval('history.back()');
+  await sleep(150);
+  await page.eval('history.back()');
+  await sleep(150);
+  await page.type('#search', 'pikachu');
+  await page.key('Escape');
+  await page.eval('history.forward()');
+  await sleep(150);
+  await page.eval('history.back()');
+  await sleep(150);
+  check((await search()) === 'pikachu', `${tag} Zurück nach neuer Suche: "${await search()}" statt "pikachu"`);
 }
 
 // Jede Pokémon-Seite (bzw. jede n-te) mit allen drei Reitern: keine Fehler, kein Überlauf.
@@ -485,14 +516,22 @@ async function testAllPages(page, vp) {
         // Nichts ragt aus seinem Feld (IV-Felder, verwandte Formen) – auch auf schmalen Handys.
         const box = (n) => n.getBoundingClientRect();
         if ([...target.querySelectorAll('.iv > *, .related__list li')].some((n) => box(n).right > box(n.parentElement).right + 1)) overflow.push(key + ':eng');
+        // Keine Lücken im Text ("null", "undefined", "NaN").
+        if (/\bnull\b|undefined|NaN/.test(target.textContent)) errors.push(key + ': null/undefined im Text');
+        // Keine Max-Kämpfe auf der Pokémon-Seite (die stehen im Dyna-Kompass).
+        // ("Dynamax-Kanone" ist eine normale Attacke von Endynalos.)
+        if (/Max-Kampf|Max-Kämpf|Dynamax(?!-Kanone)/.test(target.textContent)) errors.push(key + ': Max-Kämpfe');
         // Crypto-Pokémon lassen sich nicht tauschen.
         if (Power.pokemon(key).shadow && /Tausch/.test(target.querySelector('#verdict-summary').textContent)) errors.push(key + ': Tausch bei Crypto');
       } catch (err) { errors.push(key + ': ' + err.message); }
     }
-    // Dasselbe ohne Crypto (jede zehnte Seite).
+    // Dasselbe ohne Crypto (jede zehnte Seite und jede Crypto-Seite).
     Power.setCrypto(false);
-    for (const key of keys.filter((_, i) => i % 10 === 0)) {
-      try { Detail.render(key, target); } catch (err) { errors.push(key + ' (ohne Crypto): ' + err.message); }
+    for (const key of keys.filter((k, i) => i % 10 === 0 || Power.pokemon(k).shadow)) {
+      try {
+        Detail.render(key, target);
+        if (/\bnull\b|undefined|NaN/.test(target.textContent)) errors.push(key + ' (ohne Crypto): null/undefined im Text');
+      } catch (err) { errors.push(key + ' (ohne Crypto): ' + err.message); }
     }
     Power.setCrypto(true);
     return { count: keys.length, errors: errors.slice(0, 20), overflow: overflow.slice(0, 20) };

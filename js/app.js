@@ -1,6 +1,6 @@
 'use strict';
 
-// Start und Navigation. Drei Ansichten der Liste – "Alle Pokémon" (Startseite, #rangliste=<einsatz> als Rangliste),
+// Start und Navigation. Drei Ansichten der Liste – "Alle Pokémon" (Startseite, #rangliste=raid-<typ> als Rangliste),
 // "Nach Typ" (#typ, #typ=<typ>) und "Top-Rankings" (#top=<liste>) – und die Pokémon-Seite (#pokemon=<schlüssel>).
 // Zurück führt dorthin, wo man herkam – an die gemerkte Stelle und auf den Eintrag, von dem man kam.
 
@@ -17,10 +17,10 @@ const PowerApp = (() => {
     return `alle:${r.ranking ?? ''}`;
   };
 
-  // Ranglisten-Adressen der Ansicht "Alle Pokémon": raid-<typ>[-mega], max-<typ>.
+  // Ranglisten-Adressen der Ansicht "Alle Pokémon": raid-<typ>[-mega].
   function parseRanking(text) {
-    const m = /^(raid|max)-([a-z]+)(-mega)?$/.exec(text);
-    if (!m || (m[1] === 'max' && m[3])) return null;
+    const m = /^(raid)-([a-z]+)(-mega)?$/.exec(text);
+    if (!m) return null;
     const type = m[2].toUpperCase();
     if (!Power.TYPE_ORDER.includes(type)) return null;
     return { use: m[1], type, group: m[3] ? 'mega' : 'all' };
@@ -123,6 +123,12 @@ const PowerApp = (() => {
     }
   }
 
+  // Stand der Liste "Alle Pokémon" im aktuellen Verlaufseintrag merken – nach jeder Änderung, damit Zurück und Vor
+  // jede Liste so zeigen, wie man sie verlassen hat.
+  function saveList() {
+    if (current?.view === 'list' && current.sub === 'all') history.replaceState({ ...history.state, overview: Overview.snapshot() }, '');
+  }
+
   // Vorwärts innerhalb der Seite: neuer Verlaufseintrag mit der Adresse, von der man kam.
   // scroll: zur Liste springen, auch wenn die Ansicht schon offen ist (Suche "Alle Treffer").
   function navigate(hash, { scroll = false } = {}) {
@@ -131,8 +137,7 @@ const PowerApp = (() => {
       if (scroll) { scrollToMain(); document.getElementById(next.view === 'detail' ? 'detail-title' : next.sub === 'all' ? 'all-title' : 'browse-title')?.focus({ preventScroll: true }); }
       return;
     }
-    // Stand der Liste "Alle Pokémon" am alten Eintrag merken, damit Zurück ihn wiederherstellt.
-    if (current?.view === 'list' && current.sub === 'all') history.replaceState({ ...history.state, overview: Overview.snapshot() }, '');
+    saveList();
     history.pushState({ inApp: true, from: current ? hashOf(current) : null }, '', hash || window.location.pathname + window.location.search);
     show(next);
   }
@@ -160,6 +165,7 @@ const PowerApp = (() => {
       Power.data.sources.gameMasterDate ? ` · Spieldaten vom ${Power.formatDate(Power.data.sources.gameMasterDate)}` : '',
     );
     Search.init();
+    Overview.onRender(saveList);
     Overview.init();
     Browse.init();
 

@@ -11,7 +11,6 @@ const Browse = (() => {
     { id: 'gesamt', label: 'Beste Angreifer' },
     { id: 'raid', label: 'Raids je Typ' },
     { id: 'mega', label: 'Megas je Typ' },
-    { id: 'max', label: 'Max-Kämpfe je Typ' },
   ];
   const state = { type: null, top: 'gesamt', typeShown: STEP, topShown: 50 };
   let target = null;
@@ -43,16 +42,6 @@ const Browse = (() => {
     const best = PowerCalc.bestPve(data, p, PowerCalc.pveStats(data, p, { megaLevel }), type, { megaLevel });
     return best ? { type, grade: 0, fast: best.fast, charged: best.charged, dps: best.dps, tdo: best.tdo } : null;
   }
-
-  // Dynamax-Pokémon mit Max-Attacke dieses Typs, bester zuerst.
-  function maxTop(type, limit = Infinity) {
-    return (data.maxTables[type] ?? []).slice(0, limit).map((key) => {
-      const p = Power.pokemon(key);
-      return { p, a: p.rating.max.attack.find((a) => a.type === type) };
-    });
-  }
-  // Form, die den Platz erreicht: Gigadynamax (mit G-Max-Attacke) oder Dynamax.
-  const maxKind = (x) => (x.a.kind === 'gigantamax' ? `Gigadynamax${x.p.rating.max.move ? ` · ${x.p.rating.max.move}` : ''}` : 'Dynamax');
 
   // ---------- Bausteine ----------
 
@@ -114,7 +103,6 @@ const Browse = (() => {
     const crypto = Power.settings.crypto ? '' : ' (ohne Crypto)';
     const attackers = raidTop(type, { limit: 10 });
     const megas = raidTop(type, { megas: true, limit: 3 });
-    const dynamax = maxTop(type, 5);
     const own = data.pokemon.filter((p) => Power.visible(p) && p.types.includes(type))
       .sort((a, b) => Power.gradeOf(b) - Power.gradeOf(a) || Number(Boolean(Power.evolveOf(a))) - Number(Boolean(Power.evolveOf(b))) || Overview.byDex(a, b));
     const shown = own.slice(0, state.typeShown);
@@ -130,9 +118,6 @@ const Browse = (() => {
       ]),
       megas.length ? section('type-mega', `Beste ${typeName(type)}-Megas`, 'Pro Person ist im Raid nur eine Mega aktiv – auf ihrem höchsten Mega-Level gerechnet.', [
         el('ol', { class: 'rank-rows', id: 'type-mega-list' }, megas.map((x) => rankRow(x.p, x.rank, x.entry?.grade ?? 0, raidDetail(x)))),
-      ]) : null,
-      dynamax.length ? section('type-max', `Beste ${typeName(type)}-Angreifer in Max-Kämpfen`, 'Nur Dynamax- und Gigadynamax-Exemplare aus Max-Kämpfen.', [
-        el('ol', { class: 'rank-rows', id: 'type-max-list' }, dynamax.map((x) => rankRow(x.p, x.a.rank, x.a.grade, maxKind(x)))),
       ]) : null,
       section('type-all', `Alle ${typeName(type)}-Pokémon`, `${formatNumber(own.length)} Pokémon mit diesem Typ – beste Bewertung zuerst.`, [
         el('ul', { class: 'poke-grid', id: 'type-grid-list' }, shown.map((p) => el('li', {}, [Overview.tile(p)]))),
@@ -209,15 +194,11 @@ const Browse = (() => {
         if (state.top === 'raid') {
           return typeCard(type, raidTop(type, { limit: 5 }).map((x) => cardRow(x.p, x.rank, x.entry?.grade ?? 0, x.entry ? `${moveName(x.entry.fast)} + ${moveName(x.entry.charged)}` : '')), `#typ=${typeSlug(type)}`);
         }
-        if (state.top === 'mega') {
-          return typeCard(type, raidTop(type, { megas: true, limit: 3 }).map((x) => cardRow(x.p, x.rank, x.entry?.grade ?? 0, x.entry ? `${moveName(x.entry.fast)} + ${moveName(x.entry.charged)}` : '')), `#rangliste=raid-${typeSlug(type)}-mega`);
-        }
-        return typeCard(type, maxTop(type, 5).map((x) => cardRow(x.p, x.a.rank, x.a.grade, x.a.kind === 'gigantamax' ? 'Gigadynamax' : 'Dynamax')), `#rangliste=max-${typeSlug(type)}`);
+        return typeCard(type, raidTop(type, { megas: true, limit: 3 }).map((x) => cardRow(x.p, x.rank, x.entry?.grade ?? 0, x.entry ? `${moveName(x.entry.fast)} + ${moveName(x.entry.charged)}` : '')), `#rangliste=raid-${typeSlug(type)}-mega`);
       });
       const intro = {
         raid: 'Die fünf besten Angreifer je Typ gegen einen Raid-Boss, der schwach gegen diesen Typ ist.',
         mega: 'Die drei besten Mega- und Proto-Entwicklungen je Typ, auf ihrem höchsten Mega-Level.',
-        max: 'Nur Dynamax- und Gigadynamax-Exemplare aus Max-Kämpfen (Daten des Dyna-Kompass).',
       }[state.top];
       body = [el('p', { class: 'list-hint', text: intro }), el('div', { class: 'type-cards', id: 'top-cards' }, cards)];
     }
@@ -254,7 +235,7 @@ const Browse = (() => {
   }
 
   return {
-    init, showType, showTop, raidTop, overallTop, maxTop,
+    init, showType, showTop, raidTop, overallTop,
     TOP_TABS, hasTop: (id) => TOP_TABS.some((t) => t.id === id), currentType: () => state.type,
   };
 })();

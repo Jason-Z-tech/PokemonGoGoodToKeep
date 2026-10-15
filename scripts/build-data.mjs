@@ -1,5 +1,5 @@
 // Baut data/pokemon-data.js aus den Spieldaten (Game Master), den offiziellen deutschen Spieltexten,
-// den Release-Angaben von PvPoke, den Dynamax-Daten des Dyna-Kompass und den Artworks von PokeAPI.
+// den Release-Angaben von PvPoke und den Artworks von PokeAPI. Max-Kämpfe stehen im Dyna-Kompass, nicht hier.
 // Nur Node-Bordmittel (ab Node 22) und Chrome/Edge für die Bilder.
 // Aufruf: node scripts/build-data.mjs [--refresh] [--no-images] [--report]
 //   --refresh    alle Quellen neu herunterladen (sonst Zwischenspeicher in scripts/.cache/)
@@ -31,7 +31,6 @@ const SOURCES = {
   pvpoke: `${PVPOKE}/gamemaster.json`,
   textsDe: `${RAW}/sora10pls/holoholo-text/main/Release/German/de-de_raw.json`,
   textsEn: `${RAW}/sora10pls/holoholo-text/main/Release/English/en-us_raw.json`,
-  dyna: `${RAW}/Jason-Z-tech/dyna-kompass/main/data/pokemon-data.js`,
   pokeapiPokemon: `${RAW}/PokeAPI/pokeapi/master/data/v2/csv/pokemon.csv`,
   artwork: (id) => `${RAW}/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
 };
@@ -50,8 +49,6 @@ const PVE = { level: 40, targetDefense: 200, targetCpm: 0.79030001, incoming: 90
 const RAID_GRADES = [1.0, 0.9, 0.8];
 // Mega-Entwicklungen: im Vergleich zur besten Mega des Typs.
 const MEGA_GRADES = [0.95, 0.85, 0.75];
-// Max-Kämpfe: Max-Schaden im Vergleich zum besten Dynamax-Pokémon des Typs.
-const MAX_GRADES = [0.92, 0.82, 0.72];
 
 const TYPES = {
   NORMAL: 'Normal', FIRE: 'Feuer', WATER: 'Wasser', GRASS: 'Pflanze', ELECTRIC: 'Elektro',
@@ -98,7 +95,7 @@ const BATTLE_ONLY_FORMS = new Set(['MORPEKO_HANGRY', 'AEGISLASH_BLADE', 'DARMANI
 
 // Von Hand gepflegte Korrekturen zu PvPoke: Dort sind Pokémon, die im Trainerkampf nicht antreten können
 // (Ditto, Ninjatom, Cosmog …), als "nicht erschienen" geführt – im Spiel gibt es sie aber.
-// Riffex ist seit dem 16.11.2024 als Dynamax-Pokémon im Spiel.
+// Riffex ist seit dem 16.11.2024 im Spiel (aus Max-Kämpfen); PvPoke führt es noch als nicht erschienen.
 const RELEASE_FIXES = new Set(['DITTO', 'SHEDINJA', 'SPEWPA', 'COSMOG', 'COSMOEM', 'TOXTRICITY', 'TOXTRICITY_AMPED', 'TOXTRICITY_LOW_KEY']);
 
 // PvPoke kennt neue Attacken oft früher als der Game Master (z. B. Zeitenlärm für Ur-Dialga, Mystoschwert für
@@ -690,7 +687,6 @@ function linkFamilies(pokemon, texts) {
           requires: (fc.requiredCinematicMoves ?? []).flatMap((r) => r.requiredMoves ?? []),
           replaces,
           unfuse: fc.componentPokemonSettings?.formChangeType === 'UNFUSE',
-          maxBattle: Boolean(fc.requiredBreadMoves),
         });
       }
     }
@@ -782,85 +778,11 @@ function applyRaidRankings(data) {
   return tables;
 }
 
-// ---------- Max-Kämpfe (Daten des Dyna-Kompass) ----------
-
-function parseDyna(text) {
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  return JSON.parse(text.slice(start, end + 1));
-}
-
-function applyMax(pokemon, dyna, hints) {
-  if (!dyna) return null;
-  const today = new Date().toISOString().slice(0, 10);
-  const released = dyna.pokemon.filter((d) => !d.releaseDate || d.releaseDate <= today);
-  // Dynamax- und Gigadynamax-Eintrag derselben Art landen beim selben Pokémon.
-  const targetOf = (d) => (d.formId ? resolveForm(pokemon, d.speciesId, d.formId)
-    : pokemon.find((p) => p.variant === 'normal' && !p.shadow && p.speciesId === d.speciesId
-      && (!p.formId || p.formId === `${d.speciesId}_NORMAL` || p.formId === `${d.speciesId}_STANDARD`)));
-  const targets = new Map();
-  for (const d of released) {
-    const t = targetOf(d);
-    if (t) targets.set(d, t);
-    else hints.push(`Dyna-Kompass: ${d.name} (${d.speciesId}/${d.formId}) keinem Pokémon zugeordnet.`);
-  }
-  const roles = [];
-  for (const d of targets.keys()) {
-    if (!d.fastMoves.length) continue;
-    const role = (type, power) => ({ d, type, damage: (power * d.atk40 * (d.types.includes(type) ? dyna.rules.stab : 1)) / 100 });
-    if (d.kind === 'gigantamax' && d.gmaxMove) roles.push(role(d.gmaxMove.type, dyna.rules.gmaxMovePower));
-    else for (const type of new Set(d.fastMoves.map((m) => m.type))) roles.push(role(type, dyna.rules.maxMovePower));
-  }
-  // Ranglisten je Typ: jedes Pokémon einmal, mit seiner besten Max-Attacke (Dynamax oder Gigadynamax).
-  const tables = {};
-  const entries = new Map(); // Pokémon-Schlüssel -> { kinds, move, attack: [...] }
-  for (const type of Object.keys(TYPES)) {
-    const best = new Map();
-    for (const r of roles.filter((x) => x.type === type).sort((a, b) => b.damage - a.damage)) {
-      const key = targets.get(r.d).key;
-      if (!best.has(key)) best.set(key, r);
-    }
-    const list = [...best.entries()];
-    tables[type] = list.map(([key]) => key);
-    const top = list[0]?.[1].damage ?? 1;
-    list.forEach(([key, r], i) => {
-      const e = entries.get(key) ?? { attack: [] };
-      e.attack.push({ type, rank: i + 1, of: list.length, ratio: round(r.damage / top, 3), grade: gradeByRatio(r.damage / top, MAX_GRADES), kind: r.d.kind });
-      entries.set(key, e);
-    });
-  }
-  // Ausdauer (Tank): jedes Pokémon einmal.
-  const bulk = (d) => d.def40 * d.hp40;
-  const tankList = [...new Map([...targets.keys()].sort((a, b) => bulk(b) - bulk(a)).map((d) => [targets.get(d).key, d])).keys()];
-  for (const [d, target] of targets) {
-    const e = entries.get(target.key) ?? { attack: [] };
-    e.kinds = [...new Set([...(e.kinds ?? []), d.kind])];
-    if (d.kind === 'gigantamax' && d.gmaxMove) e.move = d.gmaxMove.name;
-    entries.set(target.key, e);
-  }
-  for (const [key, e] of entries) {
-    const target = pokemon.find((p) => p.key === key);
-    const tankRank = tankList.indexOf(key) + 1;
-    e.attack.sort((a, b) => b.grade - a.grade || b.ratio - a.ratio);
-    target.rating ??= {};
-    target.rating.max = {
-      kinds: e.kinds,
-      move: e.move ?? null,
-      attack: e.attack,
-      tankRank,
-      tankOf: tankList.length,
-      grade: Math.max(e.attack[0]?.grade ?? 0, tankRank <= 10 ? 2 : tankRank <= 25 ? 1 : 0),
-    };
-  }
-  return { matched: targets.size, total: released.length, tables };
-}
-
 // ---------- Gesamturteil ----------
 
 // Stufe für Raids & Arenen (bester Angriffstyp) – mit und ohne Crypto-Pokémon (Schalter auf der Seite).
-// Max-Kämpfe zählen nicht mit: Dafür braucht man ein eigenes Dynamax-Pokémon (aus Max-Kämpfen) – die Bewertung
-// steht deshalb getrennt. Eine Mega-Entwicklung zählt für ihre normale Form mit: Wer sie hochlevelt, levelt auch
-// die Mega. Vorstufen verweisen auf ihre beste Entwicklung.
+// Eine Mega-Entwicklung zählt für ihre normale Form mit: Wer sie hochlevelt, levelt auch die Mega.
+// Vorstufen verweisen auf ihre beste Entwicklung.
 function applyVerdicts(pokemon) {
   const byKey = new Map(pokemon.map((p) => [p.key, p]));
   for (const p of pokemon) {
@@ -985,12 +907,6 @@ async function main() {
   const textsDe = textMap(await cached('texts-de.json', SOURCES.textsDe));
   const textsEn = textMap(await cached('texts-en.json', SOURCES.textsEn));
   const hints = [];
-  let dyna = null;
-  try {
-    dyna = parseDyna(await cached('dyna-kompass.js', SOURCES.dyna, 'text'));
-  } catch (err) {
-    hints.push(`Dyna-Kompass-Daten nicht lesbar (${err.message}) – Max-Kämpfe ohne Bewertung.`);
-  }
   const index = indexGameMaster(gm);
 
   console.log('2/6 Pokémon, Attacken, Entwicklungen und Formen zusammenstellen …');
@@ -1025,7 +941,6 @@ async function main() {
       gameMaster: { name: 'PokeMiners/game_masters', url: 'https://github.com/PokeMiners/game_masters' },
       texts: { name: 'holoholo-text', url: 'https://github.com/sora10pls/holoholo-text' },
       pvpoke: { name: 'PvPoke', url: 'https://github.com/pvpoke/pvpoke' },
-      dyna: { name: 'Dyna-Kompass', url: 'https://jason-z-tech.github.io/dyna-kompass/' },
       images: { name: 'PokeAPI', url: 'https://pokeapi.co/' },
     },
     rules: {
@@ -1041,7 +956,7 @@ async function main() {
       plusMoveFactor: [1, 1.1, 1.2, 1.3],
       megaLevels: megaLevelRules,
       megaDurationH: index.megaSettings ? Number(index.megaSettings.evolutionLengthMs) / 3600000 : 8,
-      grades: { raid: RAID_GRADES, mega: MEGA_GRADES, max: MAX_GRADES },
+      grades: { raid: RAID_GRADES, mega: MEGA_GRADES },
     },
     upgrades,
     upgradeOverrides: Object.fromEntries([...index.upgradeOverrides].map(([k, v]) => [k, upgradeTable(v)])),
@@ -1055,10 +970,7 @@ async function main() {
   console.log('3/6 Raid-Ranglisten rechnen …');
   const raidTables = applyRaidRankings(data);
 
-  console.log('4/6 Max-Kämpfe (Dyna-Kompass) zuordnen und Urteile vergeben …');
-  const max = applyMax(pokemon, dyna, hints);
-  if (max) console.log(`   ${max.matched} von ${max.total} Dynamax-/Gigadynamax-Pokémon zugeordnet`);
-  data.maxTables = max?.tables ?? {};
+  console.log('4/6 Urteile vergeben …');
   applyVerdicts(pokemon);
   for (const p of pokemon) {
     const note = NOTES[p.formId] ?? NOTES[p.speciesId];
