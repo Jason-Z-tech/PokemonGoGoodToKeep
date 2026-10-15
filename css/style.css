@@ -1183,7 +1183,8 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
   font-weight: 700;
 }
 .compare-pick input:focus { outline: none; border-color: var(--power); box-shadow: 0 0 0 4px var(--power-soft); }
-.compare-moves { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
+.compare-cp { display: grid; gap: 6px; }
+.compare-cp .cp-feedback { margin: 0; }
 .compare-swap {
   justify-self: center;
   min-height: 44px;
@@ -1225,7 +1226,6 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 @media (min-width: 900px) {
   .compare-slots { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start; }
   .compare-swap { align-self: center; }
-  .compare-moves { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Vier Reiter auf schmalen Handys: zwei Reihen. Ranglisten-Zeilen: Bewertung unter dem Namen, damit lange

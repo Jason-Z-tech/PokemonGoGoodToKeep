@@ -22,9 +22,10 @@ Seite deshalb bewusst nicht.
     Raid-Angreifer, die 3 besten Megas und alle Pokémon dieses Typs (beste zuerst).
   - **Top-Rankings:** die besten Raid-Angreifer über alle Typen (jeweils in ihrem besten Typ), die Top 5 je Typ
     und die Top 3 Megas je Typ.
-  - **Vergleich:** zwei Pokémon nebeneinander, jedes mit eigenen IVs, „Level jetzt“, Sofort- und Lade-Attacke (oder
-    die besten), Glücks-Pokémon, Erlöst, Bester Kumpel und Mega-Level – z. B. ein Crypto-Mewtu mit 84 % gegen ein
-    normales Mewtu mit 98 %. Ergebnis für einen Angriffstyp (gemeinsamer Typ oder frei wählbar): wer sich mehr lohnt
+  - **Vergleich:** zwei Pokémon nebeneinander, jedes mit eigenen IVs und WP (die Seite findet daraus das Level),
+    Glücks-Pokémon, Erlöst, Bester Kumpel und Mega-Level – z. B. ein Crypto-Mewtu mit 84 % gegen ein normales Mewtu
+    mit 98 %. Gerechnet wird immer mit den besten Attacken (auch Top-TM-Attacken), denn lernen kann man sie alle.
+    Ergebnis für einen Angriffstyp (gemeinsamer Typ oder frei wählbar): wer sich mehr lohnt
     (Wertung, DPS und TDO auf Level 40 und 50; unter 2 % Unterschied entscheidet das günstigere Hochleveln), Stufe
     und Platz in der Rangliste mit diesen IVs, WP, Angriff, Verteidigung, KP und die Kosten bis Level 40 und 50.
     Die Adresse enthält den ganzen Vergleich (zum Teilen); „Mit einem anderen Pokémon vergleichen“ auf der
@@ -53,8 +54,8 @@ Direktlinks: `index.html#pokemon=mamoswine`, `index.html#pokemon=crypto-mamoswin
 Ansichten: `#typ` (Typ wählen), `#typ=fire` (Typ englisch), `#top=gesamt`, `#top=raid`, `#top=mega`,
 vollständige Ranglisten in „Alle Pokémon“: `#rangliste=raid-fire`, `#rangliste=raid-fire-mega`,
 Vergleich: `#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:20` – je Pokémon
-`schlüssel:angriff-vert-kp:level[:merkmale[:sofort-attacke[:lade-attacke]]]`, Merkmale `g` Glücks-Pokémon, `e` Erlöst,
-`k` Bester Kumpel, `m1`–`m4` Mega-Level (z. B. `mewtwo-mega-y:15-15-15:40:m4`).
+`schlüssel:angriff-vert-kp[:level[:merkmale]]` (das Level erscheint auf der Seite als WP), Merkmale `g` Glücks-Pokémon,
+`e` Erlöst, `k` Bester Kumpel, `m1`–`m4` Mega-Level (z. B. `mewtwo-mega-y:15-15-15:40:m4`).
 
 ## Veröffentlichen (GitHub Pages)
 
@@ -73,7 +74,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html` und `datenschutz.html` den Zusatz
-`?v=2026-10-15-5` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
+`?v=2026-10-15-6` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
 Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und
 neue Skripte mischen.
 
@@ -99,8 +100,8 @@ Pokémon öffnen und zurück, IV-Eingabe, Vorlagen, halbe Level, Bester Kumpel, 
 dann IVs; Statuszeile für Screenreader), Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher),
 „Erlöst“ auf der Mega-Seite, die Marken Top-TM und Meteorit, Reiter per Tastatur, Zurück aus einer Rangliste (Liste
 mit Suche wie vorher), der Vergleich (WP, Angriff im Kampf und Kosten unabhängig nachgerechnet, Gewinner,
-Markierungen, Adresse, Suchfeld per Tastatur, Tauschen, feste Attacke, Mega auf Super-Max, Beispiel-Knopf, Link von
-der Pokémon-Seite und zurück, ohne Crypto) und die Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
+Markierungen, Adresse, WP-Eingabe → Level auch nach geänderten IVs, Suchfeld per Tastatur, Tauschen, Mega auf
+Super-Max, Beispiel-Knopf, Link von der Pokémon-Seite und zurück, ohne Crypto) und die Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
 Level 40 und 4724 auf Level 50, 270 000 Sternenstaub und 304 Bonbons bis Level 40, 296 Bonbons XL bis 50, Crypto 360,
 Erlöst 272). Auf dem Desktop wird jede Pokémon-Seite mit allen drei Reitern gezeichnet (auf Tablet, Handy und schmalem
 Handy jede siebte, fünfte bzw. dreizehnte), zusätzlich jede zehnte ohne Crypto – ohne Fehler, ohne seitlichen Überlauf
@@ -153,8 +154,8 @@ Das Urteil richtet sich nach **Raids und Arenen** (bester Angriffstyp, bei norma
   aus den Spieldaten: Bonbons +1/+1/+2/+3, XL-Chance –/10/25/30 %, EP –/+50/+100/+200 für gefangene Pokémon passender
   Typen, Ruhezeit 7/5/3/1 Tage, Super-Max zusätzlich 5000 Mega-Energie. Der Raid-Bonus (+10 %, eigener Typ +30 %) gilt
   für alle anderen im Raid, nicht für die Mega selbst.
-- **Vergleich:** dieselbe Rechnung wie die Ranglisten, aber mit den eingegebenen IVs, Leveln und Attacken beider
-  Pokémon gegen denselben Boss. Stufe und Platz „mit diesen IVs“ vergleichen die eigene Wertung auf Level 40 mit der
+- **Vergleich:** dieselbe Rechnung wie die Ranglisten, aber mit den eingegebenen IVs und dem Level aus den WP beider
+  Pokémon gegen denselben Boss (beste Attacken). Stufe und Platz „mit diesen IVs“ vergleichen die eigene Wertung auf Level 40 mit der
   Rangliste des Typs (Maßstab wie dort: der Fünftbeste bzw. die beste Mega).
 - **Entwickeln:** Taugt eine Vorstufe selbst nichts (Stufe „Lohnt nicht“), eine Entwicklung aber schon, heißt das
   Urteil „Erst entwickeln“ – mit Kosten und Bedingungen der Entwicklung (bei Crypto ohne Tausch-Bedingung, erlöst mit

@@ -1,10 +1,11 @@
 'use strict';
 
-// Ansicht "Vergleich" (#vergleich=<platz 1>,<platz 2>): zwei Pokémon nebeneinander, jedes mit eigenen IVs, Level,
-// Glück, Erlöst, Bester Kumpel, Mega-Level und Attacken. Ergebnis: welches lohnt sich für Raids & Arenen mehr
-// (DPS, TDO, Wertung, Stufe und Platz mit diesen IVs), Werte auf Level 40/50 und was das Hochleveln kostet.
-// Adresse eines Platzes: schlüssel:angriff-vert-kp:level[:merkmale[:sofort-attacke[:lade-attacke]]] mit den
-// Merkmalen g = Glücks-Pokémon, e = Erlöst, k = Bester Kumpel, m1–m4 = Mega-Level. Sie ändert sich mit jeder
+// Ansicht "Vergleich" (#vergleich=<platz 1>,<platz 2>): zwei Pokémon nebeneinander, jedes mit eigenen IVs, WP (daraus
+// das Level), Glück, Erlöst, Bester Kumpel und Mega-Level. Gerechnet wird immer mit den besten Attacken – lernen kann
+// man sie alle. Ergebnis: welches lohnt sich für Raids & Arenen mehr (DPS, TDO, Wertung, Stufe und Platz mit diesen
+// IVs), Werte auf Level 40/50 und was das Hochleveln kostet.
+// Adresse eines Platzes: schlüssel:angriff-vert-kp[:level[:merkmale]] mit den Merkmalen g = Glücks-Pokémon,
+// e = Erlöst, k = Bester Kumpel, m1–m4 = Mega-Level (alte Adressen mit Attacken dahinter gehen auch). Sie ändert sich mit jeder
 // Eingabe, damit man einen Vergleich teilen kann und Zurück ihn wiederherstellt.
 
 const Compare = (() => {
@@ -18,7 +19,8 @@ const Compare = (() => {
   const EXAMPLE = 'crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:20';
   const SLOT_NAMES = ['Pokémon 1', 'Pokémon 2'];
 
-  const blankSlot = () => ({ key: null, iv: { ...FULL }, level: START_LEVEL, lucky: false, purified: false, buddy: false, megaLevel: null, fast: null, charged: null });
+  // cpText: eingegebene WP; level: daraus gefunden (null: keine WP oder sie passen nicht – dann gilt START_LEVEL).
+  const blankSlot = () => ({ key: null, iv: { ...FULL }, cpText: '', level: null, lucky: false, purified: false, buddy: false, megaLevel: null });
   const state = { slots: [blankSlot(), blankSlot()], type: null };
   let target = null;
   let active = false;
@@ -35,19 +37,26 @@ const Compare = (() => {
   // Name mit IVs – unterscheidet auch zwei gleiche Pokémon ("Mewtu (98 %)").
   const label = (s) => `${pokemonOf(s).name} (${ivText(s.iv)})`;
 
-  // Nur erlaubte Werte: Glück/Erlöst nur, wo möglich, Mega-Level nur bei Megas, Attacken nur aus dem Attackenpool.
+  // WP wie im Spiel: der normalen Form (eine Mega kehrt zurück) und ohne Kumpel-Boost.
+  const cpAt = (p, iv, level) => PowerCalc.combatPower(ownerOf(p).base, iv, PowerCalc.cpmAt(data, level));
+  // Das erste Level, auf dem die WP mit diesen IVs passen.
+  function levelFromCp(p, iv, cpText) {
+    const cp = Number(cpText);
+    if (!cp) return null;
+    for (let l = 1; l <= data.rules.maxLevel; l += 0.5) if (cpAt(p, iv, l) === cp) return l;
+    return null;
+  }
+
+  // Nur erlaubte Werte: Glück/Erlöst nur, wo möglich, Mega-Level nur bei Megas; Level aus WP und IVs.
   function normalize(s) {
     const p = pokemonOf(s);
     if (!p) return blankSlot();
-    const megaLevel = isMega(p) ? Math.min(s.megaLevel ?? p.megaLevels, p.megaLevels) : null;
-    const moves = movesOf(p, megaLevel);
     return {
       ...s,
       lucky: s.lucky && canBeLucky(p),
       purified: s.purified && canBePurified(p),
-      megaLevel,
-      fast: moves.fast.some((m) => m.id === s.fast) ? s.fast : null,
-      charged: moves.charged.some((m) => m.id === s.charged) ? s.charged : null,
+      megaLevel: isMega(p) ? Math.min(s.megaLevel ?? p.megaLevels, p.megaLevels) : null,
+      level: levelFromCp(p, s.iv, s.cpText),
     };
   }
 
@@ -56,27 +65,27 @@ const Compare = (() => {
   function encodeSlot(s) {
     if (!s.key) return '';
     const flags = `${s.lucky ? 'g' : ''}${s.purified ? 'e' : ''}${s.buddy ? 'k' : ''}${s.megaLevel ? `m${s.megaLevel}` : ''}`;
-    const parts = [s.key, `${s.iv.atk}-${s.iv.def}-${s.iv.sta}`, String(s.level), flags, s.fast ?? '', s.charged ?? ''];
-    while (parts.length > 3 && !parts.at(-1)) parts.pop();
+    const parts = [s.key, `${s.iv.atk}-${s.iv.def}-${s.iv.sta}`, s.level === null ? '' : String(s.level), flags];
+    while (parts.length > 2 && !parts.at(-1)) parts.pop();
     return parts.join(':');
   }
 
   function decodeSlot(text) {
-    const [key, ivs = '', level = '', flags = '', fast = '', charged = ''] = (text ?? '').split(':');
+    const [key, ivs = '', level = '', flags = ''] = (text ?? '').split(':');
     const s = blankSlot();
-    if (!key || !Power.pokemon(key)) return s;
+    const p = key ? Power.pokemon(key) : null;
+    if (!p) return s;
     s.key = key;
     const iv = ivs.split('-').map(Number);
     if (iv.length === 3 && iv.every((v) => Number.isInteger(v) && v >= 0 && v <= 15)) s.iv = { atk: iv[0], def: iv[1], sta: iv[2] };
-    const l = Number(level);
-    if (l >= 1 && l <= data.rules.maxLevel && Number.isInteger(l * 2)) s.level = l;
+    // Das Level aus der Adresse wird zu WP (so steht es im Feld).
+    const l = level === '' ? NaN : Number(level);
+    if (l >= 1 && l <= data.rules.maxLevel && Number.isInteger(l * 2)) s.cpText = String(cpAt(p, s.iv, l));
     s.lucky = flags.includes('g');
     s.purified = flags.includes('e');
     s.buddy = flags.includes('k');
     const mega = /m([1-4])/.exec(flags);
     if (mega) s.megaLevel = Number(mega[1]);
-    s.fast = fast || null;
-    s.charged = charged || null;
     return normalize(s);
   }
 
@@ -91,9 +100,10 @@ const Compare = (() => {
 
   // Link von der Pokémon-Seite: dieses Pokémon mit seinen Eingaben, daneben die Crypto- bzw. normale Form.
   function linkFor(p, { iv = FULL, level = START_LEVEL, lucky = false, purified = false, buddy = false, megaLevel = null } = {}) {
-    const a = normalize({ ...blankSlot(), key: p.key, iv: { ...iv }, level, lucky, purified, buddy, megaLevel });
+    const a = normalize({ ...blankSlot(), key: p.key, iv: { ...iv }, cpText: String(cpAt(p, iv, level)), lucky, purified, buddy, megaLevel });
     const other = p.shadow ? p.normalKey : isMega(p) ? null : p.shadowKey;
-    const b = other && Power.pokemon(other) ? normalize({ ...blankSlot(), key: other, level }) : blankSlot();
+    const q = other ? Power.pokemon(other) : null;
+    const b = q ? normalize({ ...blankSlot(), key: other, cpText: String(cpAt(q, FULL, level)) }) : blankSlot();
     return `#vergleich=${encodeSlot(a)},${encodeSlot(b)}`;
   }
 
@@ -144,24 +154,23 @@ const Compare = (() => {
     const megaLevel = isMega(p) ? s.megaLevel : null;
     const megaBoost = megaLevel ? data.rules.megaLevels[megaLevel - 1].selfCpBoost : 0;
     const boost = PowerCalc.levelBoost(data, { buddy: s.buddy, megaBoost });
-    const moves = movesOf(p, megaLevel);
-    const types = [...new Set(moves.charged.filter((c) => !s.charged || c.id === s.charged).map((c) => c.type))];
+    const types = [...new Set(movesOf(p, megaLevel).charged.map((c) => c.type))];
     const perf = {};
     for (const type of types) {
       const at = Object.fromEntries(LEVELS.map((level) => [level, PowerCalc.bestPve(data, p,
-        PowerCalc.pveStats(data, p, { level, iv: s.iv, buddy: s.buddy, megaLevel }), type,
-        { megaLevel, fast: s.fast, charged: s.charged })]));
+        PowerCalc.pveStats(data, p, { level, iv: s.iv, buddy: s.buddy, megaLevel }), type, { megaLevel })]));
       if (!at[40]) continue;
       perf[type] = { ...at, standing: standing(p, type, at[40].score) };
     }
     const ranked = Object.keys(perf).sort((a, b) => (perf[b].standing?.grade ?? 0) - (perf[a].standing?.grade ?? 0)
       || (perf[b].standing?.ratio ?? 0) - (perf[a].standing?.ratio ?? 0));
     const opts = { lucky: s.lucky && canBeLucky(p), purified: s.purified && canBePurified(p) };
+    const now = s.level ?? START_LEVEL;
     return {
-      s, p, owner, boost, perf, best: ranked[0] ?? null,
+      s, p, owner, boost, perf, best: ranked[0] ?? null, now, known: s.level !== null,
       cp: (level) => PowerCalc.combatPower(p.base, s.iv, PowerCalc.cpmAt(data, level + boost)),
       stats: (level) => PowerCalc.statsAt(data, p, level + boost, s.iv),
-      cost: (to) => (s.level < to ? PowerCalc.powerUpCost(data, owner, s.level, to, opts) : null),
+      cost: (to) => (now < to ? PowerCalc.powerUpCost(data, owner, now, to, opts) : null),
     };
   }
 
@@ -200,7 +209,7 @@ const Compare = (() => {
     const items = [];
     if (!a || !b) {
       const [has, lacks] = a ? [ea, eb] : [eb, ea];
-      items.push(el('p', { class: 'compare-verdict__lead', text: `Für ${typeName(type)}-Raids nur ${label(has.s)}: ${label(lacks.s)} hat keine ${typeName(type)}-Lade-Attacke${lacks.s.charged ? ' (mit der gewählten Attacke)' : ''}.` }));
+      items.push(el('p', { class: 'compare-verdict__lead', text: `Für ${typeName(type)}-Raids nur ${label(has.s)}: ${label(lacks.s)} hat keine ${typeName(type)}-Lade-Attacke.` }));
       return { winner: has === ea ? 0 : 1, items };
     }
     const r40 = a[40].score / b[40].score;
@@ -268,19 +277,26 @@ const Compare = (() => {
     ]);
   }
 
-  function select(i, id, text, options, value, onPick) {
-    return el('label', { class: 'select select--compact' }, [
-      el('span', { class: 'control-label', text }),
-      el('select', {
-        id: `c${i}-${id}`, autocomplete: 'off',
-        onchange: (e) => { onPick(e.target.value); onChange(i, `#c${i}-${id}`); },
-      }, options.map((o) => el('option', { value: o.value, selected: o.value === value, text: o.text }))),
+  // WP eingeben (wie im Spiel): daraus und aus den IVs findet die Seite das Level.
+  function cpInput(i, p) {
+    const s = state.slots[i];
+    const cp = Number(s.cpText);
+    const feedback = !s.cpText
+      ? el('p', { class: 'cp-feedback', id: `c${i}-cp-feedback`, text: `Ohne WP wird mit Level ${START_LEVEL} gerechnet.` })
+      : s.level !== null
+        ? el('p', { class: 'cp-feedback cp-feedback--ok', id: `c${i}-cp-feedback`, text: `${formatNumber(cp)} WP = Level ${formatLevel(s.level)}` })
+        : el('p', { class: 'cp-feedback', id: `c${i}-cp-feedback`, text: `${formatNumber(cp)} WP passen mit ${s.iv.atk}/${s.iv.def}/${s.iv.sta} zu keinem Level – stimmen die IVs? Gerechnet wird mit Level ${START_LEVEL}.` });
+    return el('div', { class: 'compare-cp' }, [
+      el('label', { class: 'cp-input' }, [
+        el('span', { class: 'control-label', text: isMega(p) ? `WP (normale Form, ohne ${p.variant === 'primal' ? 'Protomorphose' : 'Mega-Entwicklung'})` : 'WP' }),
+        el('input', {
+          id: `c${i}-cp`, type: 'number', inputmode: 'numeric', min: '10', max: '9999', placeholder: 'z. B. 2390', value: s.cpText, autocomplete: 'off',
+          'aria-describedby': `c${i}-cp-feedback`,
+          onchange: (e) => { s.cpText = e.target.value.trim(); onChange(i, `#c${i}-cp`); },
+        }),
+      ]),
+      feedback,
     ]);
-  }
-
-  function moveOption(m) {
-    const p = Power.move(m.id);
-    return { value: m.id, text: `${p.name} (${typeName(m.type)})` };
   }
 
   // Suchfeld eines Platzes (Muster "Combobox mit Listbox" wie die Suche oben).
@@ -318,7 +334,8 @@ const Compare = (() => {
     const choose = (key) => {
       close();
       if (!key) return;
-      state.slots[i] = normalize({ ...state.slots[i], key, fast: null, charged: null, megaLevel: null });
+      // Neues Pokémon: die WP gehörten zum alten.
+      state.slots[i] = normalize({ ...state.slots[i], key, cpText: '', megaLevel: null });
       render({ focus: `#c${i}-pick` });
     };
     input.addEventListener('input', open);
@@ -357,7 +374,6 @@ const Compare = (() => {
     const p = pokemonOf(s);
     const children = [el('h3', { class: 'compare-slot__title', id: `c${i}-title`, text: SLOT_NAMES[i] }), picker(i)];
     if (p) {
-      const moves = movesOf(p, s.megaLevel);
       children.push(
         el('a', { class: 'compare-slot__head', href: `#pokemon=${p.key}`, data: { pokemon: p.key } }, [
           Power.pokemonArt(p, { size: 'sm' }),
@@ -369,12 +385,7 @@ const Compare = (() => {
         ]),
         el('p', { class: 'mine__iv-total', id: `c${i}-iv-total` }, [`IVs ${s.iv.atk}/${s.iv.def}/${s.iv.sta} · `, el('strong', { text: ivText(s.iv) })]),
         el('div', { class: 'mine__ivs' }, [ivSelect(i, 'atk', 'Angriff'), ivSelect(i, 'def', 'Verteidigung'), ivSelect(i, 'sta', 'KP')]),
-        select(i, 'level', 'Level jetzt', Array.from({ length: (data.rules.maxLevel - 1) * 2 + 1 }, (_, k) => 1 + k / 2)
-          .map((l) => ({ value: String(l), text: `Level ${formatLevel(l)}` })), String(s.level), (v) => { s.level = Number(v); }),
-        el('div', { class: 'compare-moves' }, [
-          select(i, 'fast', 'Sofort-Attacke', [{ value: '', text: 'Beste' }, ...moves.fast.map(moveOption)], s.fast ?? '', (v) => { s.fast = v || null; }),
-          select(i, 'charged', 'Lade-Attacke', [{ value: '', text: 'Beste je Typ' }, ...moves.charged.map(moveOption)], s.charged ?? '', (v) => { s.charged = v || null; }),
-        ]),
+        cpInput(i, p),
         el('div', { class: 'mine__toggles' }, [
           toggle(i, 'lucky', 'Glücks-Pokémon', canBeLucky(p) ? 'halber Sternenstaub' : 'nicht möglich', { disabled: !canBeLucky(p) }),
           canBePurified(p) ? toggle(i, 'purified', 'Erlöst', '10 % günstiger') : null,
@@ -458,12 +469,12 @@ const Compare = (() => {
     // Mit Kumpel- oder Super-Max-Boost: das Level, auf dem es dann kämpft.
     const boosted = (e, level) => (e.boost ? el('small', { text: ` (wie Level ${formatLevel(level + e.boost)})` }) : null);
     const statRows = [
-      row('WP jetzt', [ea, eb].map((e) => [`${formatNumber(e.cp(e.s.level))} · Level ${formatLevel(e.s.level)}`, boosted(e, e.s.level)])),
+      row('Level jetzt', [ea, eb].map((e) => (e.known ? `Level ${formatLevel(e.now)} (aus ${formatNumber(Number(e.s.cpText))} WP)` : `Level ${formatLevel(e.now)} angenommen (keine passenden WP)`))),
       ...LEVELS.map((level) => row(`WP auf Level ${level}`, [ea, eb].map((e) => [formatNumber(e.cp(level)), boosted(e, level)]), betterOf(ea.cp(level), eb.cp(level)))),
       row('Angriff im Kampf (Level 40)', [ea, eb].map((e) => formatNumber(e.stats(40).atk, 1)), betterOf(ea.stats(40).atk, eb.stats(40).atk)),
       row('Verteidigung im Kampf (Level 40)', [ea, eb].map((e) => formatNumber(e.stats(40).def, 1)), betterOf(ea.stats(40).def, eb.stats(40).def)),
       row('KP (Level 40)', [ea, eb].map((e) => formatNumber(e.stats(40).hp)), betterOf(ea.stats(40).hp, eb.stats(40).hp)),
-      ...LEVELS.map((level) => row(`Kosten bis Level ${level}`, [ea, eb].map((e) => costText(e.cost(level))),
+      ...LEVELS.map((level) => row(`Kosten bis Level ${level}`, [ea, eb].map((e) => [costText(e.cost(level)), e.known ? null : el('small', { text: ` (ab Level ${START_LEVEL})` })]),
         betterOf(ea.cost(level)?.stardust ?? 0, eb.cost(level)?.stardust ?? 0, false))),
     ];
     const typeSelect = el('label', { class: 'select select--compact compare-type' }, [
@@ -482,7 +493,7 @@ const Compare = (() => {
       ]),
       table('compare-raid', `Raids & Arenen: ${typeName(type)}`, ea, eb, raidRows),
       table('compare-stats', 'Werte und Kosten', ea, eb, statRows),
-      el('p', { class: 'info-card__line', text: `Gerechnet wie die Ranglisten: gegen einen 5-Sterne-Boss, der schwach gegen ${typeName(type)} ist, mit den gewählten (sonst den besten) Attacken, Crypto mit ×1.2 Angriff und ×0.83 Verteidigung, Kumpel und Super-Max-Level mit ihrem Level-Boost. Kosten ab „Level jetzt“, Power-ups einer Mega gehen an die normale Form.` }),
+      el('p', { class: 'info-card__line', text: `Gerechnet wie die Ranglisten: gegen einen 5-Sterne-Boss, der schwach gegen ${typeName(type)} ist, mit den besten Attacken (auch Top-TM-Attacken – lernen kann man sie alle), Crypto mit ×1.2 Angriff und ×0.83 Verteidigung, Kumpel und Super-Max-Level mit ihrem Level-Boost. Kosten ab dem Level aus den WP, Power-ups einer Mega gehen an die normale Form.` }),
     ]);
   }
 

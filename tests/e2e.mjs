@@ -561,6 +561,10 @@ const compareState = (page) => page.eval(`({
   ])),
   overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
 })`);
+async function setNumber(page, selector, value) {
+  await page.eval(`(() => { const i = document.querySelector(${JSON.stringify(selector)}); i.value = ${JSON.stringify(String(value))}; i.dispatchEvent(new Event('change')); })()`);
+  await sleep(60);
+}
 // "270’000 Sternenstaub · 312 Bonbons · 360 Bonbons XL" → { stardust, candy, xl }
 function costCell(text) {
   const out = { stardust: 0, candy: 0, xl: 0 };
@@ -588,7 +592,7 @@ async function testCompare(page, vp) {
   check(s.overflow <= 0, `${tag} Vergleich läuft seitlich über (${s.overflow}px)`);
   // WP, Angriff und Kosten unabhängig nachgerechnet.
   check(num(s.cells['WP auf Level 40'][0].text) === cpOf(shadow, 40, ivA) && num(s.cells['WP auf Level 50'][1].text) === cpOf(mewtwo, 50, ivB)
-    && num(s.cells['WP jetzt'][0].text.split(' ')[0]) === cpOf(shadow, 20, ivA), `${tag} Vergleich: WP falsch`);
+    && s.cells['Level jetzt'][0].text === `Level 20 (aus ${cpOf(shadow, 20, ivA).toLocaleString('de-CH')} WP)`, `${tag} Vergleich: WP falsch (${s.cells['Level jetzt'][0].text})`);
   const atkA = (shadow.base.atk + 13) * cpm(40) * DATA.rules.shadowAttack;
   const atkB = (mewtwo.base.atk + 15) * cpm(40);
   check(Math.abs(num(s.cells['Angriff im Kampf (Level 40)'][0].text) - atkA) < 0.051 && Math.abs(num(s.cells['Angriff im Kampf (Level 40)'][1].text) - atkB) < 0.051
@@ -602,11 +606,23 @@ async function testCompare(page, vp) {
     check(marked === (x > y ? 0 : 1), `${tag} Vergleich: "besser" bei ${rowName} falsch`);
   }
 
-  // IVs ändern: die Adresse zieht mit.
+  // WP statt Level: aus der Adresse stehen die WP im Feld.
+  check((await page.eval(`document.getElementById('c0-cp').value`)) === String(cpOf(shadow, 20, ivA)), `${tag} Vergleich: WP-Feld aus der Adresse`);
+  check(!(await page.eval(`document.querySelector('#c0-fast, #c0-charged, #c1-fast, #c1-charged, #c0-level, #c1-level')`)), `${tag} Vergleich: keine Attacken- oder Level-Auswahl mehr`);
+  // WP eingeben: das Level folgt (Adresse, Rückmeldung, Kosten).
+  const cp30 = cpOf(mewtwo, 30, ivB);
+  await setNumber(page, '#c1-cp', cp30);
+  s = await compareState(page);
+  check(s.hash === '#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:30' && /= Level 30$/.test(await page.eval(`document.getElementById('c1-cp-feedback').textContent`))
+    && sameCost(costCell(s.cells['Kosten bis Level 40'][1].text), cost(mewtwo, 30, 40)), `${tag} Vergleich: WP ${cp30} → Level 30 (${s.hash})`);
+  // IVs ändern: dieselben WP, das Level wird neu gesucht.
+  const iv10 = { ...ivB, atk: 10 };
+  let level10 = null;
+  for (let l = 1; l <= DATA.rules.maxLevel && level10 === null; l += 0.5) if (cpOf(mewtwo, l, iv10) === cp30) level10 = l;
   await selectValue(page, '#c1-iv-atk', 10);
   s = await compareState(page);
-  check(s.hash === '#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:10-15-14:20' && num(s.cells['WP auf Level 40'][1].text) === cpOf(mewtwo, 40, { ...ivB, atk: 10 }),
-    `${tag} Vergleich: IVs ändern → ${s.hash}`);
+  check(s.hash === `#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:10-15-14${level10 === null ? '' : `:${level10}`}` && num(s.cells['WP auf Level 40'][1].text) === cpOf(mewtwo, 40, iv10)
+    && (await page.eval(`document.getElementById('c1-cp').value`)) === String(cp30), `${tag} Vergleich: IVs ändern → ${s.hash} (erwartet Level ${level10})`);
 
   // Anderes Pokémon über das Suchfeld (Tastatur): gemeinsamer Angriffstyp Eis.
   await page.type('#c1-pick', 'mamu');
@@ -614,7 +630,10 @@ async function testCompare(page, vp) {
   await page.key('Enter');
   await sleep(120);
   s = await compareState(page);
-  check(s.names[1] === 'Mamutel' && s.hash.endsWith(',mamoswine:10-15-14:20') && s.type === 'ICE', `${tag} Vergleich: Mamutel wählen → ${s.names[1]}, ${s.hash}, ${s.type}`);
+  check(s.names[1] === 'Mamutel' && s.hash.endsWith(',mamoswine:10-15-14') && s.type === 'ICE', `${tag} Vergleich: Mamutel wählen → ${s.names[1]}, ${s.hash}, ${s.type}`);
+  // Ohne WP: Level 20 angenommen, gut sichtbar.
+  check(/Level 20/.test(await page.eval(`document.getElementById('c1-cp-feedback').textContent`)) && /ab Level 20/.test(s.cells['Kosten bis Level 40'][1].text)
+    && sameCost(costCell(s.cells['Kosten bis Level 40'][1].text.replace(/ \(ab Level 20\)$/, '')), cost(byKey.get('mamoswine'), 20, 40)), `${tag} Vergleich: ohne WP Level 20`);
   check((await page.eval(`document.activeElement?.id`)) === 'c1-pick', `${tag} Vergleich: Fokus bleibt im Suchfeld`);
   // Typ, den nur eines kann.
   await selectValue(page, '#compare-type', 'PSYCHIC');
@@ -623,11 +642,11 @@ async function testCompare(page, vp) {
   // Tauschen.
   await page.click('#compare-swap');
   s = await compareState(page);
-  check(s.names.join() === 'Mamutel,Crypto-Mewtu' && s.hash === '#vergleich=mamoswine:10-15-14:20,crypto-mewtwo:13-12-13:20', `${tag} Vergleich: Tauschen → ${s.hash}`);
-  // Feste Lade-Attacke: steht in der Adresse, nur noch ihr Typ.
-  await selectValue(page, '#c1-charged', 'ICE_BEAM');
+  check(s.names.join() === 'Mamutel,Crypto-Mewtu' && s.hash === '#vergleich=mamoswine:10-15-14,crypto-mewtwo:13-12-13:20', `${tag} Vergleich: Tauschen → ${s.hash}`);
+  // Alte Adresse mit Attacken dahinter: geht noch, die Attacken fallen weg (immer die besten).
+  await page.goto(url('index.html', '#vergleich=crypto-mewtwo:13-12-13:20:::ICE_BEAM,mewtwo:15-15-14:20'));
   s = await compareState(page);
-  check(s.hash.endsWith(',crypto-mewtwo:13-12-13:20:::ICE_BEAM') && s.type === 'ICE' && /Eisstrahl/.test(s.cells.Attacken[1].text), `${tag} Vergleich: feste Lade-Attacke → ${s.hash}`);
+  check(s.hash === '#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:20' && s.type === 'PSYCHIC', `${tag} Vergleich: alte Adresse mit Attacke → ${s.hash}`);
 
   // Mega auf Super-Max-Level: WP 2 Level höher, Kosten ab Level 40 bis 40 schon erreicht.
   await page.goto(url('index.html', '#vergleich=mewtwo-mega-y:15-15-15:40:m4,mewtwo:15-15-15:40'));
@@ -637,6 +656,9 @@ async function testCompare(page, vp) {
     && s.cells['Kosten bis Level 40'][0].text === 'schon erreicht'
     && sameCost(costCell(s.cells['Kosten bis Level 50'][0].text), cost(mewtwo, 40, 50)), `${tag} Vergleich: Mega-Mewtu Y Super-Max`);
   check(await page.eval(`document.querySelector('input[name="c0-mega-level"][value="4"]')?.checked`), `${tag} Vergleich: Mega-Level 4 gewählt`);
+  // Bei einer Mega gelten die WP der normalen Form.
+  check((await page.eval(`document.getElementById('c0-cp').value`)) === String(cpOf(mewtwo, 40, full))
+    && /normale Form/.test(await page.eval(`document.querySelector('#c0-slot .compare-cp .control-label')?.textContent ?? ''`)), `${tag} Vergleich: WP der Mega = WP der normalen Form`);
 
   // Leer: Beispiel per Knopf.
   await page.goto(url('index.html', '#vergleich'));
@@ -652,7 +674,7 @@ async function testCompare(page, vp) {
   await sleep(120);
   s = await compareState(page);
   check(s.hash === '#vergleich=crypto-mewtwo:12-15-15:20,mewtwo:15-15-15:20' && s.names.join() === 'Crypto-Mewtu,Mewtu', `${tag} Vergleich von der Pokémon-Seite: ${s.hash}`);
-  await selectValue(page, '#c1-level', 30);
+  await setNumber(page, '#c1-cp', cpOf(mewtwo, 30, full));
   await page.click('a.compare-slot__head[data-pokemon="mewtwo"]');
   await sleep(120);
   check((await page.eval(`document.getElementById('detail-title')?.textContent`)) === 'Mewtu' && (await page.eval(`document.getElementById('back').textContent`)) === '← Zum Vergleich', `${tag} Vergleich → Pokémon-Seite`);
