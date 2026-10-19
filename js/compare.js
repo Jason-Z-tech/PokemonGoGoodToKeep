@@ -5,7 +5,8 @@
 // man sie alle. Ergebnis: welches lohnt sich für Raids & Arenen mehr (DPS, TDO, Wertung, Stufe und Platz mit diesen
 // IVs), Werte auf Level 40/50 und was das Hochleveln kostet.
 // Adresse eines Platzes: schlüssel:angriff-vert-kp[:level[:merkmale]] mit den Merkmalen g = Glücks-Pokémon,
-// e = Erlöst, k = Bester Kumpel, m1–m4 = Mega-Level (alte Adressen mit Attacken dahinter gehen auch). Sie ändert sich mit jeder
+// e = Erlöst, k = Bester Kumpel, s = Shiny (nur das Bild), m1–m4 = Mega-Level (alte Adressen mit Attacken dahinter
+// gehen auch). Sie ändert sich mit jeder
 // Eingabe, damit man einen Vergleich teilen kann und Zurück ihn wiederherstellt.
 
 const Compare = (() => {
@@ -20,7 +21,8 @@ const Compare = (() => {
   const SLOT_NAMES = ['Pokémon 1', 'Pokémon 2'];
 
   // cpText: eingegebene WP; level: daraus gefunden (null: keine WP oder sie passen nicht – dann gilt START_LEVEL).
-  const blankSlot = () => ({ key: null, iv: { ...FULL }, cpText: '', level: null, lucky: false, purified: false, buddy: false, megaLevel: null });
+  // cpBoosted: die WP passten mit Kumpel-Boost (so zeigt sie das Spiel beim aktiven besten Kumpel).
+  const blankSlot = () => ({ key: null, iv: { ...FULL }, cpText: '', level: null, cpBoosted: false, lucky: false, purified: false, buddy: false, shiny: false, megaLevel: null });
   const state = { slots: [blankSlot(), blankSlot()], type: null };
   let target = null;
   let active = false;
@@ -37,26 +39,24 @@ const Compare = (() => {
   // Name mit IVs – unterscheidet auch zwei gleiche Pokémon ("Mewtu (98 %)").
   const label = (s) => `${pokemonOf(s).name} (${ivText(s.iv)})`;
 
-  // WP wie im Spiel: der normalen Form (eine Mega kehrt zurück) und ohne Kumpel-Boost.
-  const cpAt = (p, iv, level) => PowerCalc.combatPower(ownerOf(p).base, iv, PowerCalc.cpmAt(data, level));
-  // Das erste Level, auf dem die WP mit diesen IVs passen.
-  function levelFromCp(p, iv, cpText) {
-    const cp = Number(cpText);
-    if (!cp) return null;
-    for (let l = 1; l <= data.rules.maxLevel; l += 0.5) if (cpAt(p, iv, l) === cp) return l;
-    return null;
-  }
+  // WP wie im Spiel: der normalen Form (eine Mega kehrt zurück); als aktiver bester Kumpel mit +1 Level.
+  const buddyBoost = (buddy) => (buddy ? data.rules.buddyBoostLevels : 0);
+  const cpAt = (p, iv, level, buddy = false) => PowerCalc.combatPower(ownerOf(p).base, iv, PowerCalc.cpmAt(data, level + buddyBoost(buddy)));
 
-  // Nur erlaubte Werte: Glück/Erlöst nur, wo möglich, Mega-Level nur bei Megas; Level aus WP und IVs.
+  // Nur erlaubte Werte: Glück/Erlöst nur, wo möglich, Mega-Level nur bei Megas, Shiny nur mit Bild; Level aus WP
+  // und IVs (mit "Bester Kumpel" zuerst so, wie das Spiel die WP beim aktiven Kumpel zeigt).
   function normalize(s) {
     const p = pokemonOf(s);
     if (!p) return blankSlot();
+    const match = Number(s.cpText) ? PowerCalc.matchCp(data, ownerOf(p).base, s.iv, Number(s.cpText), s.buddy) : null;
     return {
       ...s,
       lucky: s.lucky && canBeLucky(p),
       purified: s.purified && canBePurified(p),
+      shiny: s.shiny && Boolean(p.imageShiny),
       megaLevel: isMega(p) ? Math.min(s.megaLevel ?? p.megaLevels, p.megaLevels) : null,
-      level: levelFromCp(p, s.iv, s.cpText),
+      level: match?.level ?? null,
+      cpBoosted: match?.boosted ?? false,
     };
   }
 
@@ -64,7 +64,7 @@ const Compare = (() => {
 
   function encodeSlot(s) {
     if (!s.key) return '';
-    const flags = `${s.lucky ? 'g' : ''}${s.purified ? 'e' : ''}${s.buddy ? 'k' : ''}${s.megaLevel ? `m${s.megaLevel}` : ''}`;
+    const flags = `${s.lucky ? 'g' : ''}${s.purified ? 'e' : ''}${s.buddy ? 'k' : ''}${s.shiny ? 's' : ''}${s.megaLevel ? `m${s.megaLevel}` : ''}`;
     const parts = [s.key, `${s.iv.atk}-${s.iv.def}-${s.iv.sta}`, s.level === null ? '' : String(s.level), flags];
     while (parts.length > 2 && !parts.at(-1)) parts.pop();
     return parts.join(':');
@@ -78,14 +78,15 @@ const Compare = (() => {
     s.key = key;
     const iv = ivs.split('-').map(Number);
     if (iv.length === 3 && iv.every((v) => Number.isInteger(v) && v >= 0 && v <= 15)) s.iv = { atk: iv[0], def: iv[1], sta: iv[2] };
-    // Das Level aus der Adresse wird zu WP (so steht es im Feld).
-    const l = level === '' ? NaN : Number(level);
-    if (l >= 1 && l <= data.rules.maxLevel && Number.isInteger(l * 2)) s.cpText = String(cpAt(p, s.iv, l));
     s.lucky = flags.includes('g');
     s.purified = flags.includes('e');
     s.buddy = flags.includes('k');
+    s.shiny = flags.includes('s');
     const mega = /m([1-4])/.exec(flags);
     if (mega) s.megaLevel = Number(mega[1]);
+    // Das Level aus der Adresse wird zu WP (so steht es im Feld – beim besten Kumpel mit Boost).
+    const l = level === '' ? NaN : Number(level);
+    if (l >= 1 && l <= data.rules.maxLevel && Number.isInteger(l * 2)) s.cpText = String(cpAt(p, s.iv, l, s.buddy));
     return normalize(s);
   }
 
@@ -99,8 +100,8 @@ const Compare = (() => {
   }
 
   // Link von der Pokémon-Seite: dieses Pokémon mit seinen Eingaben, daneben die Crypto- bzw. normale Form.
-  function linkFor(p, { iv = FULL, level = START_LEVEL, lucky = false, purified = false, buddy = false, megaLevel = null } = {}) {
-    const a = normalize({ ...blankSlot(), key: p.key, iv: { ...iv }, cpText: String(cpAt(p, iv, level)), lucky, purified, buddy, megaLevel });
+  function linkFor(p, { iv = FULL, level = START_LEVEL, lucky = false, purified = false, buddy = false, shiny = false, megaLevel = null } = {}) {
+    const a = normalize({ ...blankSlot(), key: p.key, iv: { ...iv }, cpText: String(cpAt(p, iv, level, buddy)), lucky, purified, buddy, shiny, megaLevel });
     const other = p.shadow ? p.normalKey : isMega(p) ? null : p.shadowKey;
     const q = other ? Power.pokemon(other) : null;
     const b = q ? normalize({ ...blankSlot(), key: other, cpText: String(cpAt(q, FULL, level)) }) : blankSlot();
@@ -284,7 +285,7 @@ const Compare = (() => {
     const feedback = !s.cpText
       ? el('p', { class: 'cp-feedback', id: `c${i}-cp-feedback`, text: `Ohne WP wird mit Level ${START_LEVEL} gerechnet.` })
       : s.level !== null
-        ? el('p', { class: 'cp-feedback cp-feedback--ok', id: `c${i}-cp-feedback`, text: `${formatNumber(cp)} WP = Level ${formatLevel(s.level)}` })
+        ? el('p', { class: 'cp-feedback cp-feedback--ok', id: `c${i}-cp-feedback`, text: `${formatNumber(cp)} WP = Level ${formatLevel(s.level)}${s.buddy ? (s.cpBoosted ? ' (WP mit Kumpel-Boost, wie beim aktiven besten Kumpel)' : ' (WP ohne Kumpel-Boost)') : ''}` })
         : el('p', { class: 'cp-feedback', id: `c${i}-cp-feedback`, text: `${formatNumber(cp)} WP passen mit ${s.iv.atk}/${s.iv.def}/${s.iv.sta} zu keinem Level – stimmen die IVs? Gerechnet wird mit Level ${START_LEVEL}.` });
     return el('div', { class: 'compare-cp' }, [
       el('label', { class: 'cp-input' }, [
@@ -376,7 +377,7 @@ const Compare = (() => {
     if (p) {
       children.push(
         el('a', { class: 'compare-slot__head', href: `#pokemon=${p.key}`, data: { pokemon: p.key } }, [
-          Power.pokemonArt(p, { size: 'sm' }),
+          Power.pokemonArt(p, { size: 'sm', shiny: s.shiny }),
           el('span', { class: 'compare-slot__name' }, [
             el('strong', { text: p.name }),
             el('span', { class: 'compare-slot__chips' }, [...p.types.map((t) => Power.typeChip(t, true)), ...Power.badges(p)]),
@@ -390,6 +391,7 @@ const Compare = (() => {
           toggle(i, 'lucky', 'Glücks-Pokémon', canBeLucky(p) ? 'halber Sternenstaub' : 'nicht möglich', { disabled: !canBeLucky(p) }),
           canBePurified(p) ? toggle(i, 'purified', 'Erlöst', '10 % günstiger') : null,
           toggle(i, 'buddy', 'Bester Kumpel', `+${data.rules.buddyBoostLevels} Level`),
+          toggle(i, 'shiny', 'Shiny', p.imageShiny ? 'nur das Aussehen' : 'kein Shiny-Bild', { disabled: !p.imageShiny }),
         ]),
         isMega(p) ? el('fieldset', { class: 'segmented', id: `c${i}-mega` }, [
           el('legend', { class: 'control-label', text: p.variant === 'primal' ? 'Proto-Level' : 'Mega-Level' }),
@@ -469,7 +471,9 @@ const Compare = (() => {
     // Mit Kumpel- oder Super-Max-Boost: das Level, auf dem es dann kämpft.
     const boosted = (e, level) => (e.boost ? el('small', { text: ` (wie Level ${formatLevel(level + e.boost)})` }) : null);
     const statRows = [
-      row('Level jetzt', [ea, eb].map((e) => (e.known ? `Level ${formatLevel(e.now)} (aus ${formatNumber(Number(e.s.cpText))} WP)` : `Level ${formatLevel(e.now)} angenommen (keine passenden WP)`))),
+      row('Level jetzt', [ea, eb].map((e) => (e.known
+        ? `Level ${formatLevel(e.now)} (aus ${formatNumber(Number(e.s.cpText))} WP${e.s.cpBoosted ? ' mit Kumpel-Boost' : ''})`
+        : `Level ${formatLevel(e.now)} angenommen (keine passenden WP)`))),
       ...LEVELS.map((level) => row(`WP auf Level ${level}`, [ea, eb].map((e) => [formatNumber(e.cp(level)), boosted(e, level)]), betterOf(ea.cp(level), eb.cp(level)))),
       row('Angriff im Kampf (Level 40)', [ea, eb].map((e) => formatNumber(e.stats(40).atk, 1)), betterOf(ea.stats(40).atk, eb.stats(40).atk)),
       row('Verteidigung im Kampf (Level 40)', [ea, eb].map((e) => formatNumber(e.stats(40).def, 1)), betterOf(ea.stats(40).def, eb.stats(40).def)),

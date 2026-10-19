@@ -169,12 +169,16 @@ const Power = (() => {
     }, [`#${String(p.dex).padStart(3, '0')}`]);
   }
 
-  function pokemonArt(p, { eager = false, size = 'md' } = {}) {
+  // shiny: Shiny-Artwork (falls vorhanden) mit kleinem Funkeln in der Ecke.
+  function pokemonArt(p, { eager = false, size = 'md', shiny = false } = {}) {
     const variant = p.variant === 'normal' ? '' : ` art--${p.variant}`;
-    return el('div', { class: `art art--${size}${variant}${p.shadow ? ' art--shadow' : ''}` }, [
-      p.image
-        ? el('img', { src: p.image, alt: '', width: 256, height: 256, loading: eager ? 'eager' : 'lazy', decoding: 'async' })
+    const asShiny = shiny && Boolean(p.imageShiny);
+    const src = asShiny ? p.imageShiny : p.image;
+    return el('div', { class: `art art--${size}${variant}${p.shadow ? ' art--shadow' : ''}${asShiny ? ' art--shiny' : ''}` }, [
+      src
+        ? el('img', { src, alt: '', width: 256, height: 256, loading: eager ? 'eager' : 'lazy', decoding: 'async' })
         : artFallback(p),
+      asShiny ? el('span', { class: 'art__shiny', title: 'Shiny', text: '✨' }) : null,
     ]);
   }
 

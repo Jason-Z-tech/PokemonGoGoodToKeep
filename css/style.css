@@ -415,6 +415,9 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 .art--sm { width: 56px; border-radius: 12px; }
 .art--md { width: 64px; border-radius: 14px; }
 .art--lg { width: min(200px, 52vw); border-radius: 28px; }
+/* Shiny: goldener Schimmer und ein Funkeln in der Ecke. */
+.art--shiny { --glow: #ffc23d40; }
+.art__shiny { position: absolute; top: 4%; right: 4%; font-size: max(12px, 14cqi); line-height: 1; pointer-events: none; filter: drop-shadow(0 1px 2px #000a); }
 .art img {
   width: 100%;
   height: 100%;

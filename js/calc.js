@@ -47,6 +47,25 @@ const PowerCalc = (() => {
     };
   }
 
+  // Level aus WP und IVs: das erste Level, auf dem die WP passen. boost: Level-Boost, mit dem das Spiel die WP zeigt
+  // (aktiver bester Kumpel: +1). Ergebnis: das echte Level oder null.
+  function levelFromCp(data, base, iv, cp, boost = 0) {
+    for (let level = 1; level <= data.rules.maxLevel; level += 0.5) {
+      if (combatPower(base, iv, cpmAt(data, level + boost)) === cp) return level;
+    }
+    return null;
+  }
+
+  // WP-Eingabe: Ist "Bester Kumpel" an, zeigt das Spiel (beim aktiven Kumpel) die WP schon mit Boost – so wird zuerst
+  // gelesen, sonst ohne Boost. boosted sagt, welche Lesart gepasst hat.
+  function matchCp(data, base, iv, cp, buddy = false) {
+    const boost = buddy ? data.rules.buddyBoostLevels : 0;
+    const withBoost = boost ? levelFromCp(data, base, iv, cp, boost) : null;
+    if (withBoost !== null) return { level: withBoost, boosted: true };
+    const plain = levelFromCp(data, base, iv, cp);
+    return plain === null ? null : { level: plain, boosted: false };
+  }
+
   // Höchstes erreichbares Level (inkl. Boost): normales Maximum + Bester Kumpel + Super-Max-Level einer Mega.
   // Ob sich die beiden Boosts addieren, ist nicht bekannt – gerechnet wird mit dem größeren.
   function levelBoost(data, { buddy = false, megaBoost = 0 } = {}) {
@@ -163,7 +182,7 @@ const PowerCalc = (() => {
   }
 
   return {
-    FULL_IV, cpmAt, combatPower, statsAt, levelBoost, powerUpCost, upgradeTable,
+    FULL_IV, cpmAt, combatPower, statsAt, levelBoost, levelFromCp, matchCp, powerUpCost, upgradeTable,
     pveTarget, pvePerformance, pveMoves, bestPve, pveByType, pveStats, moveOf,
   };
 })();

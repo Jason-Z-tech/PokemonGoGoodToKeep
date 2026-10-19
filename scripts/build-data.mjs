@@ -33,6 +33,7 @@ const SOURCES = {
   textsEn: `${RAW}/sora10pls/holoholo-text/main/Release/English/en-us_raw.json`,
   pokeapiPokemon: `${RAW}/PokeAPI/pokeapi/master/data/v2/csv/pokemon.csv`,
   artwork: (id) => `${RAW}/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`,
+  artworkShiny: (id) => `${RAW}/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/shiny/${id}.png`,
 };
 
 const PowerCalc = createRequire(import.meta.url)(path.join(ROOT, 'js', 'calc.js'));
@@ -855,30 +856,49 @@ function pokeApiId(api, p) {
   return api.defaultBySpecies.get(p.dex) ?? null;
 }
 
+// Ein Artwork aus dem Zwischenspeicher oder von PokeAPI; null, wenn es keins gibt.
+async function artworkFile(url, file) {
+  if (await exists(file)) return file;
+  const buf = await fetchWithRetry(url, 'buffer');
+  if (!buf) return null;
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, buf);
+  return file;
+}
+
+// Normale und Shiny-Artworks (assets/img/<id>.webp und assets/img/shiny/<id>.webp).
 async function loadImages(pokemon, api, missing) {
   const jobs = [];
   await mapLimited(pokemon.filter((p) => !p.shadow), 8, async (p) => {
     const id = pokeApiId(api, p);
     if (!id) { missing.push(p.name); return; }
-    const raw = path.join(IMG_RAW_DIR, `${id}.png`);
-    if (!await exists(raw)) {
-      const buf = await fetchWithRetry(SOURCES.artwork(id), 'buffer');
-      if (!buf) { missing.push(p.name); return; }
-      await mkdir(IMG_RAW_DIR, { recursive: true });
-      await writeFile(raw, buf);
-    }
+    const raw = await artworkFile(SOURCES.artwork(id), path.join(IMG_RAW_DIR, `${id}.png`));
+    if (!raw) { missing.push(p.name); return; }
     p.image = `assets/img/${id}.webp`;
     jobs.push({ src: raw, dest: path.join(IMG_DIR, `${id}.webp`) });
+    const shiny = await artworkFile(SOURCES.artworkShiny(id), path.join(IMG_RAW_DIR, 'shiny', `${id}.png`));
+    if (!shiny) return;
+    p.imageShiny = `assets/img/shiny/${id}.webp`;
+    jobs.push({ src: shiny, dest: path.join(IMG_DIR, 'shiny', `${id}.webp`) });
   });
   // Crypto-Pokémon zeigen das Bild der normalen Form (mit violetter Aura auf der Seite).
   const byKey = new Map(pokemon.map((p) => [p.key, p]));
-  for (const p of pokemon) if (p.shadow) p.image = byKey.get(p.normalKey)?.image ?? null;
+  for (const p of pokemon) {
+    if (!p.shadow) continue;
+    p.image = byKey.get(p.normalKey)?.image ?? null;
+    p.imageShiny = byKey.get(p.normalKey)?.imageShiny ?? null;
+  }
   const unique = [...new Map(jobs.map((j) => [j.dest, j])).values()];
   const converted = await convertToWebp(unique, {
     onProgress: (done, total) => { if (done % 100 === 0 || done === total) console.log(`   ${done}/${total} Bilder umgewandelt`); },
   });
-  const keep = new Set(unique.map((j) => path.basename(j.dest)));
-  for (const file of await readdir(IMG_DIR).catch(() => [])) if (!keep.has(file)) await rm(path.join(IMG_DIR, file));
+  // Alte Bilder aufräumen (in assets/img/ und assets/img/shiny/).
+  const keep = new Set(unique.map((j) => path.relative(IMG_DIR, j.dest)));
+  for (const dir of ['', 'shiny']) {
+    for (const entry of await readdir(path.join(IMG_DIR, dir), { withFileTypes: true }).catch(() => [])) {
+      if (entry.isFile() && !keep.has(path.join(dir, entry.name))) await rm(path.join(IMG_DIR, dir, entry.name));
+    }
+  }
   return { total: unique.length, converted };
 }
 
@@ -983,12 +1003,12 @@ async function main() {
   const missingImages = [];
   if (NO_IMAGES) {
     console.log('5/6 Ohne Bilder (--no-images): assets/img/ wird entfernt …');
-    for (const p of pokemon) p.image = null;
+    for (const p of pokemon) { p.image = null; p.imageShiny = null; }
     delete data.sources.images;
     await rm(IMG_DIR, { recursive: true, force: true });
   } else if (SKIP_IMAGES) {
     console.log('5/6 Bilder übersprungen (--skip-images)');
-    for (const p of pokemon) p.image = null;
+    for (const p of pokemon) { p.image = null; p.imageShiny = null; }
   } else {
     console.log('5/6 Bilder laden und in WebP umwandeln …');
     const api = pokeApiIndex(await cached('pokeapi-pokemon.csv', SOURCES.pokeapiPokemon, 'text'));

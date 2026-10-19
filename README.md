@@ -23,7 +23,7 @@ Seite deshalb bewusst nicht.
   - **Top-Rankings:** die besten Raid-Angreifer über alle Typen (jeweils in ihrem besten Typ), die Top 5 je Typ
     und die Top 3 Megas je Typ.
   - **Vergleich:** zwei Pokémon nebeneinander, jedes mit eigenen IVs und WP (die Seite findet daraus das Level),
-    Glücks-Pokémon, Erlöst, Bester Kumpel und Mega-Level – z. B. ein Crypto-Mewtu mit 84 % gegen ein normales Mewtu
+    Glücks-Pokémon, Erlöst, Bester Kumpel, Shiny und Mega-Level – z. B. ein Crypto-Mewtu mit 84 % gegen ein normales Mewtu
     mit 98 %. Gerechnet wird immer mit den besten Attacken (auch Top-TM-Attacken), denn lernen kann man sie alle.
     Ergebnis für einen Angriffstyp (gemeinsamer Typ oder frei wählbar): wer sich mehr lohnt
     (Wertung, DPS und TDO auf Level 40 und 50; unter 2 % Unterschied entscheidet das günstigere Hochleveln), Stufe
@@ -33,8 +33,9 @@ Seite deshalb bewusst nicht.
 - **Pokémon-Seite:** oben das Urteil mit Begründung und Links zu Crypto-, Mega- und Vorstufen/Entwicklungen.
   Darunter **„Dein Pokémon“**: IVs (standardmäßig 15/15/15 = 100 %, Vorlagen für Glücks-Minimum 12/12/12 und
   Raid-Minimum 10/10/10), „Level jetzt“ (oder WP eingeben – die Seite findet das Level, auch wenn die IVs danach
-  kommen), Glücks-Pokémon, Erlöst (auch auf der Mega-Seite), Bester Kumpel und bei Megas das Mega-Level (Basis, High,
-  Max, Super-Max). Das Urteil „Mit deinen IVs“ ändert sich mit den Eingaben (und wird Screenreadern angesagt). Drei
+  kommen; mit „Bester Kumpel“ gelten die WP so, wie das Spiel sie beim aktiven besten Kumpel zeigt – mit +1 Level),
+  Glücks-Pokémon, Erlöst (auch auf der Mega-Seite), Bester Kumpel, **Shiny** (zeigt das Shiny-Bild, auch bei Mega,
+  Crypto und Entwicklungen; Werte bleiben gleich) und bei Megas das Mega-Level (Basis, High, Max, Super-Max). Das Urteil „Mit deinen IVs“ ändert sich mit den Eingaben (und wird Screenreadern angesagt). Drei
   Reiter:
   - **Bewertung:** Raids & Arenen (Platz je Angriffstyp, beste Attacken, DPS/TDO auf Level 40 und 50 mit deinen IVs,
     Hinweis auf nötige Top-TM-Attacken bzw. den Meteoriten für Zenitstürmer), Mega/Proto (Boni je Mega-Level,
@@ -55,7 +56,7 @@ Ansichten: `#typ` (Typ wählen), `#typ=fire` (Typ englisch), `#top=gesamt`, `#to
 vollständige Ranglisten in „Alle Pokémon“: `#rangliste=raid-fire`, `#rangliste=raid-fire-mega`,
 Vergleich: `#vergleich=crypto-mewtwo:13-12-13:20,mewtwo:15-15-14:20` – je Pokémon
 `schlüssel:angriff-vert-kp[:level[:merkmale]]` (das Level erscheint auf der Seite als WP), Merkmale `g` Glücks-Pokémon,
-`e` Erlöst, `k` Bester Kumpel, `m1`–`m4` Mega-Level (z. B. `mewtwo-mega-y:15-15-15:40:m4`).
+`e` Erlöst, `k` Bester Kumpel, `s` Shiny, `m1`–`m4` Mega-Level (z. B. `mewtwo-mega-y:15-15-15:40:m4`).
 
 ## Veröffentlichen (GitHub Pages)
 
@@ -74,7 +75,7 @@ git push
 Nach etwa einer Minute ist die neue Version online.
 
 **Wenn sich etwas in `js/` oder `css/` geändert hat:** vor dem Push in `index.html` und `datenschutz.html` den Zusatz
-`?v=2026-10-15-6` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
+`?v=2026-10-19-1` an den Skript- und Stylesheet-Adressen auf das heutige Datum setzen (suchen und ersetzen; am selben
 Tag mit `-2`, `-3` … anhängen). Browser behalten Dateien von GitHub Pages bis zu 10 Minuten und würden sonst alte und
 neue Skripte mischen.
 
@@ -97,15 +98,18 @@ in den Daten; „Entwickeln“ fällt beim Wechsel zur Rangliste weg), die Raid-
 Plätze neu gezählt, Bewertungen ohne sie), Filter zurücksetzen, die Ansicht „Nach Typ“ (Top 10, Megas, nur Pokémon
 des Typs, zurück mit Fokus auf dem Eintrag), „Top-Rankings“ (Sortierung, Karten je Typ wie die Ranglisten),
 Pokémon öffnen und zurück, IV-Eingabe, Vorlagen, halbe Level, Bester Kumpel, Level jetzt, WP-Eingabe (auch erst WP,
-dann IVs; Statuszeile für Screenreader), Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher),
+dann IVs; mit Bester Kumpel als WP mit Boost gelesen, ohne Kumpel wieder ohne; Statuszeile für Screenreader), Shiny
+(Bild wechselt, bleibt beim Entwickeln an), Glücks-Pokémon, Crypto-Kosten, Mega-Level (Super-Max: Werte 2 Level höher),
 „Erlöst“ auf der Mega-Seite, die Marken Top-TM und Meteorit, Reiter per Tastatur, Zurück aus einer Rangliste (Liste
 mit Suche wie vorher), der Vergleich (WP, Angriff im Kampf und Kosten unabhängig nachgerechnet, Gewinner,
-Markierungen, Adresse, WP-Eingabe → Level auch nach geänderten IVs, Suchfeld per Tastatur, Tauschen, Mega auf
-Super-Max, Beispiel-Knopf, Link von der Pokémon-Seite und zurück, ohne Crypto) und die Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
+Markierungen, Adresse, WP-Eingabe → Level auch nach geänderten IVs, Bester Kumpel und Shiny aus der Adresse, Suchfeld
+per Tastatur, Tauschen, Mega auf Super-Max, Beispiel-Knopf, Link von der Pokémon-Seite und zurück, ohne Crypto) und die
+Datenschutz-Seite. WP, KP und Kosten rechnet der Test **unabhängig von `js/calc.js`** nach (u. a. Mewtu 4178 WP auf
 Level 40 und 4724 auf Level 50, 270 000 Sternenstaub und 304 Bonbons bis Level 40, 296 Bonbons XL bis 50, Crypto 360,
 Erlöst 272). Auf dem Desktop wird jede Pokémon-Seite mit allen drei Reitern gezeichnet (auf Tablet, Handy und schmalem
-Handy jede siebte, fünfte bzw. dreizehnte), zusätzlich jede zehnte ohne Crypto – ohne Fehler, ohne seitlichen Überlauf
-und ohne Felder, die aus ihrem Rahmen ragen.
+Handy jede siebte, fünfte bzw. dreizehnte), zusätzlich jede zehnte und jede Crypto-Seite ohne Crypto – ohne Fehler,
+ohne seitlichen Überlauf und ohne Felder, die aus ihrem Rahmen ragen. Dabei wird auf jeder dieser Seiten die WP-Spalte
+der Level-Tabelle Zeile für Zeile mit eigener Formel nachgerechnet, ohne und mit Bester Kumpel (Megas auf Super-Max).
 Benötigt Node.js ab Version 22 und Chrome oder Edge.
 
 ## Daten aktualisieren
@@ -124,7 +128,8 @@ Das Skript
 3. stellt Crypto-Versionen, Mega-Entwicklungen und Protomorphosen, Entwicklungen und Formwechsel zusammen,
 4. rechnet die Raid-Ranglisten je Typ (mit `js/calc.js`, wie die Seite) und vergibt die Bewertungen – einmal mit und
    einmal ohne Crypto-Pokémon,
-5. lädt die Artworks von [PokeAPI](https://pokeapi.co) und wandelt sie mit Chrome/Edge in kleine **WebP**-Dateien um,
+5. lädt die Artworks von [PokeAPI](https://pokeapi.co) – normal und Shiny – und wandelt sie mit Chrome/Edge in kleine
+   **WebP**-Dateien um (`assets/img/` und `assets/img/shiny/`),
 6. schreibt alles nach `data/pokemon-data.js`.
 
 Ohne `--refresh` werden die zwischengespeicherten Daten aus `scripts/.cache/` verwendet. `--report` gibt zusätzlich
@@ -165,7 +170,9 @@ Das Urteil richtet sich nach **Raids und Arenen** (bester Angriffstyp, bei norma
 **Werte und Kosten:** WP = ⌊(Angriff + IV) × √(Verteidigung + IV) × √(KP + IV) × CPM² ÷ 10⌋, CPM aus den Spieldaten
 (halbe Level als Wurzel-Mitte). Power-up-Kosten aus `POKEMON_UPGRADE_SETTINGS` (Endynalos mit eigener Tabelle):
 Crypto ×1,2, Erlöst ×0,9 (Sternenstaub und Bonbons), Glücks-Pokémon ×0,5 Sternenstaub, jeder Schritt aufgerundet.
-Ab Level 40 Bonbons XL statt Bonbons. Bester Kumpel kämpft 1 Level höher. Crypto-Pokémon kämpfen mit ×1,2 Angriff und
+Ab Level 40 Bonbons XL statt Bonbons. Bester Kumpel kämpft 1 Level höher (bis 51); als aktiver Kumpel zeigt das Spiel
+auch die WP 1 Level höher – so liest die Seite eingegebene WP, wenn „Bester Kumpel“ an ist. Super-Max-Level einer Mega:
++2 Level; ob sich das mit dem Kumpel-Boost addiert, ist nicht belegt – gerechnet wird mit dem größeren. Crypto-Pokémon kämpfen mit ×1,2 Angriff und
 ×0,83 Verteidigung (in den WP nicht sichtbar).
 
 Die Bewertung ist eine Schätzung: Wetter, Freundschafts-Bonus, Ausweichen, Teamwahl und Party-Power sind nicht
@@ -187,7 +194,7 @@ js/compare.js              Ansicht "Vergleich": zwei Pokémon mit IVs nebeneinan
 js/detail.js               Pokémon-Seite: Urteil, Dein Pokémon, Reiter Bewertung / Werte & Kosten / Attacken
 js/app.js                  Start und Navigation (Zurück-Link, Browser-Verlauf, Fokus)
 data/pokemon-data.js       erzeugte Daten (nicht von Hand bearbeiten)
-assets/img/                Pokémon-Bilder als WebP (erzeugt)
+assets/img/                Pokémon-Bilder als WebP (erzeugt), Shiny-Bilder in assets/img/shiny/
 assets/fonts/              Schriften, lokal eingebunden
 scripts/build-data.mjs     Daten-Skript
 scripts/images.mjs         Bilder mit Chrome in WebP umwandeln

@@ -21,7 +21,7 @@ const Detail = (() => {
   };
 
   const state = {
-    iv: { ...FULL }, level: START_LEVEL, lucky: false, purified: false, buddy: false, megaLevel: null,
+    iv: { ...FULL }, level: START_LEVEL, lucky: false, purified: false, buddy: false, shiny: false, megaLevel: null,
     tab: 'bewertung', halfLevels: false, family: null, cpText: '',
   };
   let p = null;
@@ -90,7 +90,7 @@ const Detail = (() => {
     const v = Power.verdictOf(p);
     const owner = ownerOf();
     return el('section', { class: `poke-head poke-head--${v.id}`, 'aria-labelledby': 'detail-title' }, [
-      Power.pokemonArt(p, { size: 'lg', eager: true }),
+      headerArt(),
       el('div', { class: 'poke-head__info' }, [
         el('p', { class: 'poke-head__label', text: `#${String(p.dex).padStart(3, '0')}${p.class ? ` · ${Power.CLASSES[p.class]}` : ''}${p.nameEn ? ` · ${p.nameEn}` : ''}` }),
         el('h2', { class: 'poke-head__name', id: 'detail-title', tabindex: '-1', text: p.name }),
@@ -104,6 +104,9 @@ const Detail = (() => {
       ]),
     ]);
   }
+
+  // Bild oben – als Shiny, wenn eingeschaltet (nur das Aussehen, die Werte bleiben gleich).
+  const headerArt = () => Power.pokemonArt(p, { size: 'lg', eager: true, shiny: state.shiny });
 
   // Ein Satz zum Urteil: wofür das Pokémon taugt.
   function summaryText(v) {
@@ -151,7 +154,7 @@ const Detail = (() => {
     return el('nav', { class: 'related', 'aria-label': 'Verwandte Formen und Entwicklungen' }, [
       el('ul', { class: 'related__list' }, keys.map(({ q, label }) => el('li', {}, [
         el('a', { class: 'related__link', href: `#pokemon=${q.key}`, data: { pokemon: q.key } }, [
-          Power.pokemonArt(q, { size: 'xs' }),
+          Power.pokemonArt(q, { size: 'xs', shiny: state.shiny }),
           el('span', { class: 'related__text' }, [el('small', { text: label }), el('span', { text: q.name })]),
           Power.verdictBadge(q, { small: true }),
         ]),
@@ -202,21 +205,28 @@ const Detail = (() => {
   }
 
   // Eingegebene WP: das erste Level, auf dem sie mit den IVs passen – nach jeder Änderung neu gesucht.
+  // Mit "Bester Kumpel" gelten die WP so, wie das Spiel sie beim aktiven besten Kumpel zeigt (+1 Level).
+  const cpMatch = () => PowerCalc.matchCp(data, ownerOf().base, state.iv, Number(state.cpText), state.buddy);
+
   function syncLevelFromCp() {
-    const cp = Number(state.cpText);
-    if (!cp) return;
-    const base = ownerOf().base;
-    for (let l = 1; l <= data.rules.maxLevel; l += 0.5) {
-      if (PowerCalc.combatPower(base, state.iv, PowerCalc.cpmAt(data, l)) === cp) { state.level = l; return; }
-    }
+    if (!Number(state.cpText)) return;
+    const match = cpMatch();
+    if (match) state.level = match.level;
   }
 
   function cpFeedback() {
     const cp = Number(state.cpText);
     if (!cp) return null;
     const owner = ownerOf();
-    const at = PowerCalc.combatPower(owner.base, state.iv, PowerCalc.cpmAt(data, state.level));
-    if (at === cp) return el('p', { class: 'cp-feedback cp-feedback--ok', id: 'cp-feedback', text: `${formatNumber(cp)} WP passen zu Level ${formatLevel(state.level)} (mit diesen IVs, ohne Bester-Kumpel-Boost).` });
+    const match = cpMatch();
+    if (match && match.level === state.level) {
+      const how = !state.buddy
+        ? ' Ist es dein aktiver bester Kumpel, schalte „Bester Kumpel“ ein – dann zeigt das Spiel höhere WP.'
+        : match.boosted
+          ? ' Gelesen mit Kumpel-Boost, wie das Spiel die WP beim aktiven besten Kumpel zeigt.'
+          : ' Gelesen ohne Kumpel-Boost (mit Boost passen sie zu keinem Level).';
+      return el('p', { class: 'cp-feedback cp-feedback--ok', id: 'cp-feedback', text: `${formatNumber(cp)} WP passen zu Level ${formatLevel(state.level)} (mit diesen IVs).${how}` });
+    }
     const megaHint = isMega() || owner.megas?.length
       ? ` (WP ${isMega() ? 'der normalen Form ' : ''}ohne ${isPrimalOnly(owner) ? 'Protomorphose' : 'Mega-Entwicklung'} eingeben)`
       : '';
@@ -248,13 +258,14 @@ const Detail = (() => {
       el('div', { class: 'mine__row' }, [level, cpInput()]),
       el('a', {
         class: 'compare-link', id: 'compare-link',
-        href: Compare.linkFor(p, { iv: state.iv, level: state.level, lucky: state.lucky && canBeLucky(), purified: state.purified && canBePurified(), buddy: state.buddy, megaLevel: state.megaLevel }),
+        href: Compare.linkFor(p, { iv: state.iv, level: state.level, lucky: state.lucky && canBeLucky(), purified: state.purified && canBePurified(), buddy: state.buddy, shiny: state.shiny && Boolean(p.imageShiny), megaLevel: state.megaLevel }),
       }, ['⇄ Mit einem anderen Pokémon vergleichen']),
       cpFeedback(),
       el('div', { class: 'mine__toggles' }, [
         toggle('lucky', 'Glücks-Pokémon', canBeLucky() ? 'halber Sternenstaub' : `nicht möglich (${ownerOf().shadow ? 'Crypto ist ' : ''}nicht tauschbar)`, { disabled: !canBeLucky() }),
         canBePurified() ? toggle('purified', 'Erlöst', '10 % günstiger, kein Crypto-Bonus') : null,
         toggle('buddy', 'Bester Kumpel', `+${data.rules.buddyBoostLevels} Level (bis ${data.rules.maxLevel + data.rules.buddyBoostLevels})`),
+        toggle('shiny', 'Shiny', p.imageShiny ? 'nur das Aussehen – Werte bleiben gleich' : 'kein Shiny-Bild', { disabled: !p.imageShiny }),
       ]),
       isMega() ? megaLevelControl() : null,
     ]);
@@ -290,6 +301,8 @@ const Detail = (() => {
       const scrollY = window.scrollY;
       syncLevelFromCp();
       container.querySelector('#mine').replaceWith(controls());
+      container.querySelector('.poke-head > .art')?.replaceWith(headerArt());
+      container.querySelector('.poke-head .related')?.replaceWith(relatedLinks(ownerOf()));
       renderPanel();
       announce();
       container.querySelector(focusSelector)?.focus({ preventScroll: true });
@@ -738,7 +751,7 @@ const Detail = (() => {
     const prevBase = p ? ownerOf().base : null;
     // IVs und Level bleiben innerhalb einer Familie (Entwicklung, Mega, Crypto) – wie im Spiel beim Entwickeln.
     if (!p || next.family !== state.family) {
-      Object.assign(state, { iv: { ...FULL }, level: START_LEVEL, lucky: false, purified: false, buddy: false, cpText: '' });
+      Object.assign(state, { iv: { ...FULL }, level: START_LEVEL, lucky: false, purified: false, buddy: false, shiny: false, cpText: '' });
     }
     if (p?.key !== key) state.tab = 'bewertung';
     p = next;

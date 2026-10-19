@@ -404,6 +404,19 @@ async function testDetail(page, vp) {
   const synced = await page.eval(`({ level: document.getElementById('level-now').value, ok: document.getElementById('cp-feedback')?.classList.contains('cp-feedback--ok'), status: document.getElementById('mine-status').textContent })`);
   check(synced.level === '30' && synced.ok, `${tag} WP ${cp30}, dann 15/15/15 → Level 30 erwartet: ${JSON.stringify(synced)}`);
   check(/passen zu Level 30/.test(synced.status) && /Mit deinen IVs: \S/.test(synced.status), `${tag} Statuszeile: ${synced.status}`);
+  // Bester Kumpel: Beim aktiven besten Kumpel zeigt das Spiel die WP mit +1 Level – so werden sie gelesen.
+  const cp41 = cpOf(mewtwo, 41, full);
+  const cpState = () => page.eval(`({ level: document.getElementById('level-now').value, text: document.getElementById('cp-feedback')?.textContent ?? '' })`);
+  await page.click('#opt-buddy');
+  await setNumber(page, '#cp', cp41);
+  let buddyCp = await cpState();
+  check(buddyCp.level === '40' && /mit Kumpel-Boost/.test(buddyCp.text), `${tag} Bester Kumpel: WP ${cp41} → Level 40 erwartet (${JSON.stringify(buddyCp)})`);
+  rows = await levelTable(page);
+  check(num(rows.find((r) => r.level === 40).cells[0]) === cp41 && rows.find((r) => r.level === 40).cells[4] === 'jetzt', `${tag} Bester Kumpel: Zeile Level 40 zeigt ${cp41} WP`);
+  // Kumpel aus: dieselben WP gelten ohne Boost → Level 41.
+  await page.click('#opt-buddy');
+  buddyCp = await cpState();
+  check(buddyCp.level === '41' && /bester Kumpel/.test(buddyCp.text), `${tag} Ohne Kumpel: WP ${cp41} → Level 41 erwartet (${JSON.stringify(buddyCp)})`);
 
   // Reiter per Tastatur, Attacken-Tabelle.
   await page.click('#tab-werte');
@@ -466,6 +479,15 @@ async function testDetail(page, vp) {
   await page.goto(url('index.html', '#pokemon=charmander'));
   s = await detailState(page);
   check(/verdict--evolve/.test(s.verdict), `${tag} Glumanda: "Entwickeln" erwartet`);
+  // Shiny: Bild wechselt (mit Funkeln), bleibt beim Entwickeln an, Werte bleiben gleich.
+  const art = () => page.eval(`document.querySelector('.poke-head > .art img')?.getAttribute('src') ?? null`);
+  const normalArt = await art();
+  await page.click('#opt-shiny');
+  check(normalArt === byKey.get('charmander').image && (await art()) === byKey.get('charmander').imageShiny
+    && (await page.eval(`Boolean(document.querySelector('.poke-head .art__shiny'))`)), `${tag} Shiny: Bild von Glumanda wechselt nicht`);
+  await page.click('.related__link[data-pokemon="charmeleon"]');
+  await sleep(120);
+  check((await art()) === byKey.get('charmeleon').imageShiny && (await page.eval(`document.getElementById('opt-shiny').checked`)), `${tag} Shiny bleibt nach dem Entwickeln an`);
   // Rangliste aus der Raid-Karte.
   await page.goto(url('index.html', '#pokemon=reshiram'));
   await page.click('#raid-rows a.rank-link');
@@ -660,6 +682,19 @@ async function testCompare(page, vp) {
   check((await page.eval(`document.getElementById('c0-cp').value`)) === String(cpOf(mewtwo, 40, full))
     && /normale Form/.test(await page.eval(`document.querySelector('#c0-slot .compare-cp .control-label')?.textContent ?? ''`)), `${tag} Vergleich: WP der Mega = WP der normalen Form`);
 
+  // Bester Kumpel und Shiny aus der Adresse: WP-Feld mit Kumpel-Boost, Shiny-Bild; Schalter ändert die Adresse.
+  await page.goto(url('index.html', '#vergleich=mewtwo:15-15-15:40:ks,crypto-mewtwo:15-15-15:40'));
+  s = await compareState(page);
+  check((await page.eval(`document.getElementById('c0-cp').value`)) === String(cpOf(mewtwo, 41, full))
+    && /mit Kumpel-Boost/.test(await page.eval(`document.getElementById('c0-cp-feedback').textContent`))
+    && num(s.cells['WP auf Level 40'][0].text.split(' ')[0]) === cpOf(mewtwo, 41, full) && /mit Kumpel-Boost/.test(s.cells['Level jetzt'][0].text),
+    `${tag} Vergleich mit Kumpel: WP (${s.cells['Level jetzt'][0].text})`);
+  check((await page.eval(`document.querySelector('#c0-slot .compare-slot__head img').getAttribute('src')`)) === mewtwo.imageShiny, `${tag} Vergleich: Shiny-Bild`);
+  await page.click('#c1-opt-shiny');
+  s = await compareState(page);
+  check(s.hash === '#vergleich=mewtwo:15-15-15:40:ks,crypto-mewtwo:15-15-15:40:s'
+    && (await page.eval(`document.querySelector('#c1-slot .compare-slot__head img').getAttribute('src')`)) === byKey.get('crypto-mewtwo').imageShiny, `${tag} Vergleich: Shiny-Schalter → ${s.hash}`);
+
   // Leer: Beispiel per Knopf.
   await page.goto(url('index.html', '#vergleich'));
   check(await page.eval(`document.querySelector('.view-tabs__link[data-view="compare"]').getAttribute('aria-current')`) === 'page', `${tag} Reiter Vergleich`);
@@ -702,9 +737,32 @@ async function testAllPages(page, vp) {
     document.getElementById('view-list').hidden = true;
     target.hidden = false;
     let overflow = [];
+    // WP unabhängig nachgerechnet (eigene Formel, nicht calc.js): jede Zeile der Level-Tabelle, ohne und mit Bester
+    // Kumpel (+1 Level), Megas auf Super-Max-Level +2 (größerer Boost zählt).
+    const cpmT = window.POWER_DATA.rules.cpm;
+    const cpmX = (l) => (Number.isInteger(l) ? cpmT[l - 1] : Math.sqrt((cpmT[Math.floor(l) - 1] ** 2 + cpmT[Math.floor(l)] ** 2) / 2));
+    const cpX = (b, l) => Math.max(10, Math.floor((b.atk + 15) * Math.sqrt(b.def + 15) * Math.sqrt(b.sta + 15) * cpmX(l) ** 2 / 10));
+    const superMax = window.POWER_DATA.rules.megaLevels[3].selfCpBoost;
+    const cpErrors = [];
+    const checkCp = (p, buddy) => {
+      const boost = Math.max(buddy ? 1 : 0, p.variant !== 'normal' && p.megaLevels === 4 ? superMax : 0);
+      for (const tr of target.querySelectorAll('#level-table tbody tr')) {
+        const level = Number(tr.dataset.level);
+        const shown = Number(tr.querySelector('td').textContent.replace(/[’'\s]/g, ''));
+        if (shown !== cpX(p.base, level + boost)) { cpErrors.push(p.key + (buddy ? ' (Kumpel)' : '') + ' L' + level + ': ' + shown + ' statt ' + cpX(p.base, level + boost)); break; }
+      }
+    };
+    let cpChecked = 0;
     for (const key of keys) {
       try {
         Detail.render(key, target);
+        const p = Power.pokemon(key);
+        target.querySelector('#tab-werte').click();
+        checkCp(p, false);
+        target.querySelector('#opt-buddy').click();
+        checkCp(p, true);
+        target.querySelector('#opt-buddy').click();
+        cpChecked++;
         for (const tab of ['werte', 'attacken', 'bewertung']) {
           target.querySelector('#tab-' + tab).click();
           if (document.documentElement.scrollWidth > document.documentElement.clientWidth) overflow.push(key + ':' + tab);
@@ -731,10 +789,11 @@ async function testAllPages(page, vp) {
       } catch (err) { errors.push(key + ' (ohne Crypto): ' + err.message); }
     }
     Power.setCrypto(true);
-    return { count: keys.length, errors: errors.slice(0, 20), overflow: overflow.slice(0, 20) };
+    return { count: keys.length, errors: errors.slice(0, 20), overflow: overflow.slice(0, 20), cpErrors: cpErrors.slice(0, 20), cpChecked };
   })()`);
   check(!result.errors.length, `[${vp.label}] Fehler auf Pokémon-Seiten: ${result.errors.join('; ')}`);
   check(!result.overflow.length, `[${vp.label}] Seitlicher Überlauf: ${result.overflow.join(', ')}`);
+  check(!result.cpErrors.length && result.cpChecked === result.count, `[${vp.label}] WP in der Level-Tabelle falsch: ${result.cpErrors.join('; ')}`);
   console.log(`  ${vp.label}: ${result.count} Pokémon-Seiten gerendert`);
 }
 
