@@ -82,7 +82,11 @@ const PowerApp = (() => {
 
   function show(r, { restore = false } = {}) {
     const previous = current;
-    if (previous && routeKey(previous) === routeKey(r)) return;
+    if (previous && routeKey(previous) === routeKey(r)) {
+      // Andere Vergleichs-Adresse eingetippt oder eingefügt, während der Vergleich offen ist: übernehmen.
+      if (r.sub === 'compare' && r.params !== null && `#vergleich=${r.params}` !== Compare.hash()) Compare.show(r.params, views.compare);
+      return;
+    }
     if (previous) scrollMemory.set(routeKey(previous), window.scrollY);
     views.list.hidden = r.view !== 'list';
     views.detail.hidden = r.view !== 'detail';

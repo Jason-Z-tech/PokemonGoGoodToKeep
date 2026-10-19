@@ -199,7 +199,16 @@ const Detail = (() => {
       el('span', { class: 'control-label', text: 'Oder WP eingeben' }),
       el('input', {
         id: 'cp', type: 'number', inputmode: 'numeric', min: '10', max: '9999', placeholder: 'z. B. 2390', value: state.cpText, autocomplete: 'off',
-        onchange: (e) => { state.cpText = e.target.value.trim(); onChange('#cp'); },
+        onchange: (e) => {
+          state.cpText = e.target.value.trim();
+          // Enter (Feld behält den Fokus): gleich neu zeichnen. Sonst erst nach dem Klick/Tab woanders hin – der
+          // Vergleichen-Link bekommt das neue Level sofort.
+          if (document.activeElement === e.target) { onChange('#cp'); return; }
+          syncLevelFromCp();
+          container.querySelector('#compare-link')?.setAttribute('href', compareHref());
+          const page = p;
+          Power.afterPointer(() => { if (p === page && container.isConnected && container.querySelector('#mine')) onChange(Power.focusedSelector()); });
+        },
       }),
     ]);
   }
@@ -221,7 +230,7 @@ const Detail = (() => {
     const match = cpMatch();
     if (match && match.level === state.level) {
       const how = !state.buddy
-        ? ' Ist es dein aktiver bester Kumpel, schalte „Bester Kumpel“ ein – dann zeigt das Spiel höhere WP.'
+        ? ' Ist es dein aktiver bester Kumpel, zeigt das Spiel die WP schon mit Boost (1 Level höher) – dann schalte „Bester Kumpel“ ein.'
         : match.boosted
           ? ' Gelesen mit Kumpel-Boost, wie das Spiel die WP beim aktiven besten Kumpel zeigt.'
           : ' Gelesen ohne Kumpel-Boost (mit Boost passen sie zu keinem Level).';
@@ -256,10 +265,6 @@ const Detail = (() => {
         presetButton('raid', 'Raid-Minimum (10/10/10)', { atk: 10, def: 10, sta: 10 }, 'Pokémon aus Raids, Eiern und Forschung haben mindestens 10/10/10'),
       ]),
       el('div', { class: 'mine__row' }, [level, cpInput()]),
-      el('a', {
-        class: 'compare-link', id: 'compare-link',
-        href: Compare.linkFor(p, { iv: state.iv, level: state.level, lucky: state.lucky && canBeLucky(), purified: state.purified && canBePurified(), buddy: state.buddy, shiny: state.shiny && Boolean(p.imageShiny), megaLevel: state.megaLevel }),
-      }, ['⇄ Mit einem anderen Pokémon vergleichen']),
       cpFeedback(),
       el('div', { class: 'mine__toggles' }, [
         toggle('lucky', 'Glücks-Pokémon', canBeLucky() ? 'halber Sternenstaub' : `nicht möglich (${ownerOf().shadow ? 'Crypto ist ' : ''}nicht tauschbar)`, { disabled: !canBeLucky() }),
@@ -268,8 +273,15 @@ const Detail = (() => {
         toggle('shiny', 'Shiny', p.imageShiny ? 'nur das Aussehen – Werte bleiben gleich' : 'kein Shiny-Bild', { disabled: !p.imageShiny }),
       ]),
       isMega() ? megaLevelControl() : null,
+      el('a', { class: 'compare-link', id: 'compare-link', href: compareHref() }, ['⇄ Mit einem anderen Pokémon vergleichen']),
     ]);
   }
+
+  // Vergleich mit diesem Pokémon und allen Eingaben.
+  const compareHref = () => Compare.linkFor(p, {
+    iv: state.iv, level: state.level, lucky: state.lucky && canBeLucky(), purified: state.purified && canBePurified(),
+    buddy: state.buddy, shiny: state.shiny && Boolean(p.imageShiny), megaLevel: state.megaLevel,
+  });
 
   function ivTotalText() {
     const pct = Power.ivPercent(state.iv);
@@ -301,8 +313,12 @@ const Detail = (() => {
       const scrollY = window.scrollY;
       syncLevelFromCp();
       container.querySelector('#mine').replaceWith(controls());
-      container.querySelector('.poke-head > .art')?.replaceWith(headerArt());
-      container.querySelector('.poke-head .related')?.replaceWith(relatedLinks(ownerOf()));
+      // Bild und verwandte Formen nur neu, wenn Shiny umgeschaltet wurde (sonst springt das Bild bei jeder Eingabe).
+      const art = container.querySelector('.poke-head > .art');
+      if (art && art.classList.contains('art--shiny') !== (state.shiny && Boolean(p.imageShiny))) {
+        art.replaceWith(headerArt());
+        container.querySelector('.poke-head .related')?.replaceWith(relatedLinks(ownerOf()));
+      }
       renderPanel();
       announce();
       container.querySelector(focusSelector)?.focus({ preventScroll: true });

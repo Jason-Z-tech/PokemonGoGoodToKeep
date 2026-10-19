@@ -90,9 +90,11 @@ const Compare = (() => {
     return normalize(s);
   }
 
+  // Adresse: beide Plätze, dahinter der gewählte Angriffstyp (falls nicht automatisch).
   const hash = () => {
     const slots = state.slots.map(encodeSlot);
-    return slots.some(Boolean) ? `#vergleich=${slots.join(',')}` : '#vergleich';
+    const type = state.type ? `,${state.type.toLowerCase()}` : '';
+    return slots.some(Boolean) ? `#vergleich=${slots.join(',')}${type}` : '#vergleich';
   };
 
   function saveHash() {
@@ -138,10 +140,13 @@ const Compare = (() => {
     const ref = megas ? list[0].score : list[Math.min(4, list.length - 1)].score;
     const others = list.filter((x) => x.key !== p.key);
     const ratio = score / ref;
+    // Gleiche Wertung: Reihenfolge wie in den Ranglisten.
+    const self = list.findIndex((x) => x.key === p.key);
+    const ahead = (x, j) => x.score > score + 1e-9 || (self >= 0 && j < self && Math.abs(x.score - score) <= 1e-9);
     return {
       ratio,
       grade: gradeByRatio(ratio, megas ? data.rules.grades.mega : data.rules.grades.raid),
-      rank: 1 + others.filter((x) => x.score > score + 1e-9).length,
+      rank: 1 + list.filter((x, j) => x.key !== p.key && ahead(x, j)).length,
       of: others.length + 1,
       megas,
       withCrypto,
@@ -210,32 +215,37 @@ const Compare = (() => {
     const items = [];
     if (!a || !b) {
       const [has, lacks] = a ? [ea, eb] : [eb, ea];
-      items.push(el('p', { class: 'compare-verdict__lead', text: `Für ${typeName(type)}-Raids nur ${label(has.s)}: ${label(lacks.s)} hat keine ${typeName(type)}-Lade-Attacke.` }));
+      items.push(el('p', { class: 'compare-verdict__lead', text: `Als ${typeName(type)}-Angreifer nur ${label(has.s)}: ${label(lacks.s)} hat keine ${typeName(type)}-Lade-Attacke.` }));
       return { winner: has === ea ? 0 : 1, items };
     }
     const r40 = a[40].score / b[40].score;
-    const same = Math.abs(r40 - 1) < SAME;
+    // Unterschied in beide Richtungen gleich gemessen (Tauschen ändert nichts am Urteil).
+    const same = Math.max(r40, 1 / r40) < 1 + SAME;
     const [win, lose, wp, lp, ratio] = r40 >= 1 ? [ea, eb, a, b, r40] : [eb, ea, b, a, 1 / r40];
-    const costW = win.cost(40);
-    const costL = lose.cost(40);
-    const dust = costW && costL ? costW.stardust / costL.stardust : null;
+    // Sternenstaub bis Level 40 (schon erreicht: 0).
+    const dustW = win.cost(40)?.stardust ?? 0;
+    const dustL = lose.cost(40)?.stardust ?? 0;
+    const cheaper = Math.abs(dustW - dustL) <= 0.01 * Math.max(dustW, dustL) ? null : dustW < dustL ? win : lose;
     let winner = r40 >= 1 ? 0 : 1;
     if (same) {
       // Praktisch gleich stark: das günstigere Hochleveln entscheidet.
-      const cheaper = dust === null || Math.abs(dust - 1) < 0.01 ? null : dust < 1 ? win : lose;
       winner = cheaper ? (cheaper === ea ? 0 : 1) : null;
-      items.push(el('p', { class: 'compare-verdict__lead', text: `Für ${typeName(type)}-Raids praktisch gleich stark (Unterschied unter ${formatNumber(SAME * 100, 0)} %).${cheaper ? ` ${label(cheaper.s)} ist günstiger hochzuleveln – das lohnt sich mehr.` : ''}` }));
+      const why = !cheaper ? '' : (cheaper.cost(40) ? ` ${label(cheaper.s)} ist günstiger hochzuleveln – das lohnt sich mehr.` : ` ${label(cheaper.s)} ist schon auf Level 40 – das lohnt sich mehr.`);
+      items.push(el('p', { class: 'compare-verdict__lead', text: `Als ${typeName(type)}-Angreifer praktisch gleich stark (Unterschied unter ${formatNumber(SAME * 100, 0)} %).${why}` }));
     } else {
       items.push(el('p', { class: 'compare-verdict__lead' }, [
-        el('strong', { text: label(win.s) }), ` lohnt sich für ${typeName(type)}-Raids mehr: auf Level 40 ${pct(ratio)} Wertung `,
+        el('strong', { text: label(win.s) }), ` lohnt sich als ${typeName(type)}-Angreifer mehr: auf Level 40 ${pct(ratio)} Wertung `,
         `(DPS ${pct(wp[40].dps / lp[40].dps)}, TDO ${pct(wp[40].tdo / lp[40].tdo)}).`,
       ]));
       const r50 = wp[50].score / lp[50].score;
       items.push(el('p', { text: r50 >= 1 - 1e-9 ? `Auch auf Level 50 vorne (${pct(r50)}).` : `Auf Level 50 liegt dagegen ${label(lose.s)} vorne (${pct(1 / r50)}).` }));
     }
-    if (dust !== null && Math.abs(dust - 1) >= 0.01) {
-      const [dear, cheap, f] = dust > 1 ? [win, lose, dust] : [lose, win, 1 / dust];
+    if (cheaper && dustW && dustL) {
+      const [dear, cheap, f] = dustW > dustL ? [win, lose, dustW / dustL] : [lose, win, dustL / dustW];
       items.push(el('p', { text: `Hochleveln bis Level 40 kostet bei ${label(dear.s)} ${formatNumber((f - 1) * 100, 0)} % mehr Sternenstaub als bei ${label(cheap.s)}.` }));
+    } else if (cheaper && !same) {
+      const [done, todo] = dustW ? [lose, win] : [win, lose];
+      items.push(el('p', { text: `${label(done.s)} ist schon auf Level 40, ${label(todo.s)} braucht bis dahin noch ${formatNumber(Math.max(dustW, dustL))} Sternenstaub.` }));
     }
     const grades = [ea, eb].map((e) => {
       const st = e.perf[type].standing;
@@ -293,7 +303,15 @@ const Compare = (() => {
         el('input', {
           id: `c${i}-cp`, type: 'number', inputmode: 'numeric', min: '10', max: '9999', placeholder: 'z. B. 2390', value: s.cpText, autocomplete: 'off',
           'aria-describedby': `c${i}-cp-feedback`,
-          onchange: (e) => { s.cpText = e.target.value.trim(); onChange(i, `#c${i}-cp`); },
+          onchange: (e) => {
+            s.cpText = e.target.value.trim();
+            // Enter (Feld behält den Fokus): gleich neu zeichnen. Sonst erst nach dem Klick/Tab woanders hin.
+            if (document.activeElement === e.target) { onChange(i, `#c${i}-cp`); return; }
+            // Im selben Objekt ändern: Der gleich folgende Klick (z. B. auf "Bester Kumpel") arbeitet noch damit.
+            Object.assign(s, normalize(s));
+            saveHash();
+            Power.afterPointer(() => { if (active) onChange(i, Power.focusedSelector()); });
+          },
         }),
       ]),
       feedback,
@@ -318,7 +336,8 @@ const Compare = (() => {
       options.forEach((o, k) => o.setAttribute('aria-selected', String(k === j)));
       if (j >= 0) { input.setAttribute('aria-activedescendant', options[j].id); options[j].scrollIntoView({ block: 'nearest' }); } else input.removeAttribute('aria-activedescendant');
     };
-    const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); setActive(-1); };
+    // Geschlossen: alte Vorschläge vergessen (Enter wählt sonst einen unsichtbaren Treffer).
+    const close = () => { list.hidden = true; input.setAttribute('aria-expanded', 'false'); setActive(-1); options = []; };
     const open = () => {
       const hits = input.value.trim() ? Search.matches(input.value, { all: true }).slice(0, MAX_SUGGESTIONS) : [];
       options = hits.map((q, k) => el('li', { id: `c${i}-option-${k}`, role: 'option', class: 'suggest__option', 'aria-selected': 'false', data: { pokemon: q.key } }, [
@@ -448,6 +467,7 @@ const Compare = (() => {
       ]);
     }
     const { type, all, both } = chosenType(ea, eb);
+    if (state.type && state.type !== type) state.type = null; // gewählter Typ passt nicht mehr (anderes Pokémon)
     if (!type) {
       return el('div', { class: 'compare-empty', id: 'compare-result' }, [el('p', { text: 'Keines der beiden hat eine Lade-Attacke, mit der es in Raids angreifen kann.' })]);
     }
@@ -473,7 +493,7 @@ const Compare = (() => {
     const statRows = [
       row('Level jetzt', [ea, eb].map((e) => (e.known
         ? `Level ${formatLevel(e.now)} (aus ${formatNumber(Number(e.s.cpText))} WP${e.s.cpBoosted ? ' mit Kumpel-Boost' : ''})`
-        : `Level ${formatLevel(e.now)} angenommen (keine passenden WP)`))),
+        : `Level ${formatLevel(e.now)} angenommen (${e.s.cpText ? 'WP passen zu keinem Level' : 'keine WP eingegeben'})`))),
       ...LEVELS.map((level) => row(`WP auf Level ${level}`, [ea, eb].map((e) => [formatNumber(e.cp(level)), boosted(e, level)]), betterOf(ea.cp(level), eb.cp(level)))),
       row('Angriff im Kampf (Level 40)', [ea, eb].map((e) => formatNumber(e.stats(40).atk, 1)), betterOf(ea.stats(40).atk, eb.stats(40).atk)),
       row('Verteidigung im Kampf (Level 40)', [ea, eb].map((e) => formatNumber(e.stats(40).def, 1)), betterOf(ea.stats(40).def, eb.stats(40).def)),
@@ -545,9 +565,9 @@ const Compare = (() => {
     target = panel;
     active = true;
     if (params !== null && params !== undefined) {
-      const [a = '', b = ''] = params.split(',');
+      const [a = '', b = '', type = ''] = params.split(',');
       state.slots = [decodeSlot(a), decodeSlot(b)];
-      state.type = null;
+      state.type = Power.TYPE_ORDER.includes(type.toUpperCase()) ? type.toUpperCase() : null;
     }
     render();
   }

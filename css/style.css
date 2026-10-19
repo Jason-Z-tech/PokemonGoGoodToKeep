@@ -1064,7 +1064,7 @@ main:focus, .poke-head__name:focus, .section-title:focus { outline: none; }
 
 /* ---------- Tabellen ---------- */
 
-.table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius-sm); }
+.table-wrap { position: relative; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius-sm); }
 .table-wrap:focus-visible { outline-offset: 0; }
 .data-table { width: 100%; border-collapse: collapse; font-size: .86rem; font-variant-numeric: tabular-nums; }
 .data-table caption { text-align: left; font-weight: 800; font-size: 1rem; padding: 4px 0 8px; }

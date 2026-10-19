@@ -52,6 +52,20 @@ const Power = (() => {
 
   // ---------- DOM ----------
 
+  // Ein Eingabefeld meldet "change", wenn man woanders hin klickt – schon beim Drücken. Zeichnet die Seite dann sofort
+  // neu, landet das Loslassen auf einem neuen Element und der Klick geht verloren. afterPointer wartet deshalb, bis
+  // die Maus bzw. der Finger losgelassen ist (und der Klick verarbeitet wurde).
+  let pointerDown = false;
+  document.addEventListener('pointerdown', () => { pointerDown = true; }, true);
+  document.addEventListener('pointerup', () => { pointerDown = false; }, true);
+  document.addEventListener('pointercancel', () => { pointerDown = false; }, true);
+  function afterPointer(fn) {
+    if (pointerDown) document.addEventListener('pointerup', () => setTimeout(fn), { once: true, capture: true });
+    else setTimeout(fn);
+  }
+  // Selektor des Elements mit dem Fokus (um ihn nach dem Neuzeichnen wiederherzustellen).
+  const focusedSelector = () => (document.activeElement?.id ? `#${CSS.escape(document.activeElement.id)}` : null);
+
   function el(tag, props = {}, children = []) {
     const node = document.createElement(tag);
     for (const [key, value] of Object.entries(props)) {
@@ -218,7 +232,7 @@ const Power = (() => {
   return {
     data, ready, TYPE_ORDER, GRADES, EVOLVE, CLASSES,
     settings, setCrypto, onSettingsChange, visible, withCrypto, gradeOf, evolveOf, betterOf, raidView, raidList,
-    el, formatNumber, formatLevel, formatPercent, formatDate, slugOf, normalize, searchIndex, matchesQuery, ivPercent,
+    el, afterPointer, focusedSelector, formatNumber, formatLevel, formatPercent, formatDate, slugOf, normalize, searchIndex, matchesQuery, ivPercent,
     verdictOf, shortReason,
     typeChip, typeDots, verdictBadge, gradeBadge, badges, eliteBadge, pokemonArt, meter, pokemonLink, renderSources,
     pokemon: (key) => byKey.get(key) ?? null,

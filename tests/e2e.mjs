@@ -438,6 +438,25 @@ async function testDetail(page, vp) {
   await page.click('#preset-lucky');
   s = await detailState(page);
   check(/12\/12\/12/.test(s.ivTotal) && /80\s*%/.test(s.ivTotal) && !/zu niedrig/.test(s.my), `${tag} Glücks-Minimum: ${s.ivTotal} · ${s.my}`);
+  // Das Bild oben bleibt bei Eingaben stehen (nur Shiny tauscht es).
+  await page.eval(`window.__art = document.querySelector('.poke-head > .art')`);
+  await selectValue(page, '#iv-def', 11);
+  check(await page.eval(`document.querySelector('.poke-head > .art') === window.__art`), `${tag} Bild oben wird bei Eingaben neu gezeichnet`);
+  // Echter Klick direkt nach dem Eintippen der WP: "Bester Kumpel" und der Vergleichen-Link reagieren sofort.
+  const mamo = byKey.get('mamoswine');
+  const mamoIv = { atk: 12, def: 11, sta: 12 };
+  await page.type('#cp', String(cpOf(mamo, 31, mamoIv)));
+  await page.click('#opt-buddy');
+  await sleep(150);
+  check((await page.eval(`document.getElementById('opt-buddy').checked`)) && (await page.eval(`document.getElementById('level-now').value`)) === '30',
+    `${tag} WP tippen, dann "Bester Kumpel" klicken: Level 30 mit Boost erwartet`);
+  await page.click('#opt-buddy');
+  await page.type('#cp', String(cpOf(mamo, 33, mamoIv)));
+  await page.click('#compare-link');
+  await sleep(150);
+  check((await page.eval('location.hash')).startsWith('#vergleich=mamoswine:12-11-12:33,'), `${tag} WP tippen, dann Vergleichen: ${await page.eval('location.hash')}`);
+  await page.eval('history.back()');
+  await sleep(150);
   // Crypto aus: Platz ohne Crypto.
   await page.click('#crypto-toggle');
   const rankNS = byKey.get('mamoswine').rating.raid.find((r) => r.type === 'ICE').rankNS;
@@ -655,7 +674,8 @@ async function testCompare(page, vp) {
   check(s.names[1] === 'Mamutel' && s.hash.endsWith(',mamoswine:10-15-14') && s.type === 'ICE', `${tag} Vergleich: Mamutel wählen → ${s.names[1]}, ${s.hash}, ${s.type}`);
   // Ohne WP: Level 20 angenommen, gut sichtbar.
   check(/Level 20/.test(await page.eval(`document.getElementById('c1-cp-feedback').textContent`)) && /ab Level 20/.test(s.cells['Kosten bis Level 40'][1].text)
-    && sameCost(costCell(s.cells['Kosten bis Level 40'][1].text.replace(/ \(ab Level 20\)$/, '')), cost(byKey.get('mamoswine'), 20, 40)), `${tag} Vergleich: ohne WP Level 20`);
+    && sameCost(costCell(s.cells['Kosten bis Level 40'][1].text.replace(/ \(ab Level 20\)$/, '')), cost(byKey.get('mamoswine'), 20, 40))
+    && /keine WP eingegeben/.test(s.cells['Level jetzt'][1].text), `${tag} Vergleich: ohne WP Level 20`);
   check((await page.eval(`document.activeElement?.id`)) === 'c1-pick', `${tag} Vergleich: Fokus bleibt im Suchfeld`);
   // Typ, den nur eines kann.
   await selectValue(page, '#compare-type', 'PSYCHIC');
@@ -664,7 +684,7 @@ async function testCompare(page, vp) {
   // Tauschen.
   await page.click('#compare-swap');
   s = await compareState(page);
-  check(s.names.join() === 'Mamutel,Crypto-Mewtu' && s.hash === '#vergleich=mamoswine:10-15-14,crypto-mewtwo:13-12-13:20', `${tag} Vergleich: Tauschen → ${s.hash}`);
+  check(s.names.join() === 'Mamutel,Crypto-Mewtu' && s.hash === '#vergleich=mamoswine:10-15-14,crypto-mewtwo:13-12-13:20,psychic', `${tag} Vergleich: Tauschen → ${s.hash}`);
   // Alte Adresse mit Attacken dahinter: geht noch, die Attacken fallen weg (immer die besten).
   await page.goto(url('index.html', '#vergleich=crypto-mewtwo:13-12-13:20:::ICE_BEAM,mewtwo:15-15-14:20'));
   s = await compareState(page);
@@ -694,6 +714,55 @@ async function testCompare(page, vp) {
   s = await compareState(page);
   check(s.hash === '#vergleich=mewtwo:15-15-15:40:ks,crypto-mewtwo:15-15-15:40:s'
     && (await page.eval(`document.querySelector('#c1-slot .compare-slot__head img').getAttribute('src')`)) === byKey.get('crypto-mewtwo').imageShiny, `${tag} Vergleich: Shiny-Schalter → ${s.hash}`);
+
+  // Echter Klick direkt nach dem Eintippen der WP: Klick geht nicht verloren, beides gilt.
+  await page.goto(url('index.html', '#vergleich=mewtwo:15-15-15:20,crypto-mewtwo:15-15-15:20'));
+  await page.type('#c0-cp', String(cpOf(mewtwo, 40, full)));
+  await page.click('#c0-opt-buddy');
+  await sleep(150);
+  s = await compareState(page);
+  check((await page.eval(`document.getElementById('c0-opt-buddy').checked`)) && s.hash === '#vergleich=mewtwo:15-15-15:39:k,crypto-mewtwo:15-15-15:20',
+    `${tag} Vergleich: WP tippen, dann "Bester Kumpel" klicken → ${s.hash}`);
+  await page.type('#c1-cp', String(cpOf(mewtwo, 30, full)));
+  await page.click('#compare-swap');
+  await sleep(150);
+  s = await compareState(page);
+  check(s.names.join() === 'Crypto-Mewtu,Mewtu' && s.hash === '#vergleich=crypto-mewtwo:15-15-15:30,mewtwo:15-15-15:39:k', `${tag} Vergleich: WP tippen, dann Tauschen → ${s.hash}`);
+  // Gleich stark, eines schon auf Level 40: das gewinnt (kein Hochleveln mehr nötig). Reihenfolge egal.
+  await page.goto(url('index.html', '#vergleich=mewtwo:15-15-15:40,mewtwo:15-15-15:20'));
+  s = await compareState(page);
+  check(/^Lohnt sich mehr/.test(s.title ?? '') && /schon auf Level 40/.test(s.lead ?? '') && (await page.eval(`document.getElementById('compare-verdict').classList.contains('compare-verdict--0')`)),
+    `${tag} Vergleich: schon Level 40 gewinnt bei Gleichstand (${s.title} / ${s.lead})`);
+  for (const pair of ['mewtwo:15-15-15:20,mewtwo:7-11-13:20', 'mewtwo:7-11-13:20,mewtwo:15-15-15:20']) {
+    await page.goto(url('index.html', `#vergleich=${pair}`));
+    s = await compareState(page);
+    check(s.title === 'Lohnt sich mehr: Mewtu (100 %)', `${tag} Vergleich: 2-%-Regel unabhängig von der Reihenfolge (${pair}: ${s.title})`);
+  }
+  // Platz bei gleicher Wertung wie in der Rangliste; Angriffstyp aus der Adresse.
+  const jirachiPsychic = byKey.get('jirachi').rating.raid.find((r) => r.type === 'PSYCHIC');
+  await page.goto(url('index.html', '#vergleich=jirachi:15-15-15:40,mewtwo:15-15-15:40,psychic'));
+  s = await compareState(page);
+  check(s.type === 'PSYCHIC' && s.cells['Stufe mit diesen IVs (Level 40)'][0].text.includes(`Platz ${jirachiPsychic.rank} von ${jirachiPsychic.of}`),
+    `${tag} Vergleich: Platz Jirachi Psycho ${s.cells['Stufe mit diesen IVs (Level 40)'][0].text} statt ${jirachiPsychic.rank}`);
+  await selectValue(page, '#compare-type', 'STEEL');
+  s = await compareState(page);
+  check(s.hash === '#vergleich=jirachi:15-15-15:40,mewtwo:15-15-15:40,steel', `${tag} Vergleich: Angriffstyp in der Adresse → ${s.hash}`);
+  // Neue Adresse, während der Vergleich offen ist: wird übernommen.
+  await page.eval(`location.hash = '#vergleich=mewtwo:15-15-15:30,groudon:15-15-15:30'`);
+  await sleep(150);
+  s = await compareState(page);
+  check(s.names.join() === 'Mewtu,Groudon', `${tag} Vergleich: neue Adresse übernommen (${s.names.join()})`);
+  // Suchfeld: Escape, dann Enter wählt nichts Unsichtbares.
+  await page.type('#c1-pick', 'pika');
+  await page.key('Escape');
+  await page.key('Enter');
+  await sleep(100);
+  s = await compareState(page);
+  check(s.names[1] === 'Groudon', `${tag} Vergleich: Enter nach Escape (${s.names[1]})`);
+  // Lange Namen auf schmalen Handys: kein seitliches Scrollen.
+  await page.goto(url('index.html', '#vergleich=crypto-landorus-incarnate:15-15-15:40:gks,salamence-mega:15-15-15:40:ksm4'));
+  s = await compareState(page);
+  check(s.overflow <= 0, `${tag} Vergleich mit langen Namen läuft seitlich über (${s.overflow}px)`);
 
   // Leer: Beispiel per Knopf.
   await page.goto(url('index.html', '#vergleich'));
